@@ -1,0 +1,28 @@
+PROPRIETARY LICENSE
+
+Copyright (c) 2026 Tenpo, Inc. All rights reserved.
+
+This software and associated files (the "Software") are the exclusive
+property of Tenpo, Inc. The Software is provided under a limited,
+non-transferable, non-sublicensable, revocable license solely for use
+during the authorized hackathon event.
+
+You MAY:
+  - Use the Software during the hackathon event for which it was provided.
+  - Build applications on top of the Software during that event.
+
+You MAY NOT:
+  - Copy, fork, redistribute, or publish the Software or any portion thereof.
+  - Use the Software, its design tokens, components, or design patterns in
+    any other project, product, or context.
+  - Reverse-engineer, modify, or create derivative works for use outside the
+    authorized hackathon event.
+  - Remove or alter this license notice or any proprietary markings.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT
+SHALL TENPO, INC. BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY
+ARISING FROM THE USE OF THE SOFTWARE.
+
+Unauthorized use, reproduction, or distribution of the Software may result
+in civil and criminal penalties and will be prosecuted to the fullest extent
+of the law.

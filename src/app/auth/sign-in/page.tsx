@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +29,14 @@ const signInSchema = z.object({
 });
 
 export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInPageFallback />}>
+      <SignInPageContent />
+    </Suspense>
+  );
+}
+
+function SignInPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/marketing";
@@ -178,6 +186,55 @@ export default function SignInPage() {
                   </Button>
                 </form>
               </Form>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function SignInPageFallback() {
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <Image
+            src="/images/logo/wordmark/wordmark-pitch-green.svg"
+            alt="Tenpo"
+            width={100}
+            height={35}
+          />
+          <Button asChild variant="outline">
+            <Link href="/">Back home</Link>
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto grid min-h-[calc(100vh-73px)] max-w-6xl gap-10 px-6 py-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+        <div className="space-y-6">
+          <Badge variant="secondary">Supabase auth</Badge>
+          <div className="space-y-4">
+            <h1 className="text-h3">Sign in to unlock the marketing workspace</h1>
+            <p className="max-w-xl text-body1 text-muted-foreground">
+              The marketing hub now uses your authenticated Supabase session, so audience reads and campaign writes flow through RLS instead of a server-side bypass.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-center lg:justify-end">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Loading sign-in</CardTitle>
+              <CardDescription>
+                Preparing your authentication session.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                One moment while we load the form.
+              </div>
             </CardContent>
           </Card>
         </div>

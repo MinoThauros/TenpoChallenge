@@ -55,6 +55,16 @@ export interface MarketingContactAthleteLink {
   created_at: string;
 }
 
+export interface MarketingAthlete {
+  id: string;
+  academy_id: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface MarketingEvent {
   academy_id: string;
   event_id: string;
@@ -280,11 +290,13 @@ export interface SegmentPreset<TFilters> {
 }
 
 export interface ContactSegmentQueryInput extends PaginationInput {
+  academyId?: string;
   presetId?: string;
   filters?: ContactSegmentFilters;
 }
 
 export interface ContactEventSegmentQueryInput extends PaginationInput {
+  academyId?: string;
   presetId?: string;
   filters?: ContactEventSegmentFilters;
 }
@@ -303,6 +315,13 @@ export interface LinkMarketingContactAthleteInput {
   marketing_contact_id: string;
   athlete_id: string;
   relationship_type?: MarketingRelationshipType | null;
+}
+
+export interface CreateMarketingAthleteInput {
+  academy_id: string;
+  first_name: string;
+  last_name: string;
+  birth_date?: string | null;
 }
 
 export interface UpsertMarketingEventInput {

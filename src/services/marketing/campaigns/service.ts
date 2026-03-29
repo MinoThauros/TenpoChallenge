@@ -1,5 +1,4 @@
-import { unwrapRow } from "../client";
-import { buildPage, unwrapRows } from "../client";
+import { buildPage, ensureSuccess, unwrapRow, unwrapRows } from "../client";
 import type { MarketingDatabaseClient } from "../client";
 import type {
   CreateMarketingCampaignInput,
@@ -86,6 +85,53 @@ export function createMarketingCampaignsService(client: MarketingDatabaseClient)
         result,
         "Failed to update marketing campaign status.",
       );
+    },
+
+    async updateCampaign(input: {
+      id: string;
+      name?: string;
+      subject?: string;
+      preview_text?: string | null;
+      body_html?: string;
+      body_text?: string | null;
+      from_name?: string | null;
+      from_email?: string;
+      reply_to_email?: string | null;
+      audience_definition?: Record<string, unknown>;
+      scheduled_at?: string | null;
+      sent_at?: string | null;
+      status?: string;
+    }): Promise<MarketingCampaign> {
+      const result = await client
+        .from("marketing_campaigns")
+        .update({
+          name: input.name,
+          subject: input.subject,
+          preview_text: input.preview_text,
+          body_html: input.body_html,
+          body_text: input.body_text,
+          from_name: input.from_name,
+          from_email: input.from_email,
+          reply_to_email: input.reply_to_email,
+          audience_definition: input.audience_definition,
+          scheduled_at: input.scheduled_at,
+          sent_at: input.sent_at,
+          status: input.status,
+        })
+        .eq("id", input.id)
+        .select("*")
+        .single();
+
+      return unwrapRow(result, "Failed to update marketing campaign.");
+    },
+
+    async deleteCampaign(id: string): Promise<void> {
+      const result = await client
+        .from("marketing_campaigns")
+        .delete()
+        .eq("id", id);
+
+      ensureSuccess(result, "Failed to delete marketing campaign.");
     },
   };
 }

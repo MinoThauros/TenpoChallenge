@@ -5,7 +5,11 @@ import type {
   ContactEventSegmentQueryInput,
   ContactSegmentQueryInput,
 } from "@/services/marketing";
-import { createMarketingServerServices } from "@/server/marketing/service";
+import {
+  createMarketingServerServices,
+  getMarketingServerContext,
+  toMarketingErrorResponse,
+} from "@/server/marketing/service";
 
 function isEventScoped(filters: ContactSegmentFilters | ContactEventSegmentFilters = {}) {
   const eventFilters = filters as ContactEventSegmentFilters;
@@ -23,24 +27,35 @@ function isEventScoped(filters: ContactSegmentFilters | ContactEventSegmentFilte
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as
-    | ContactSegmentQueryInput
-    | ContactEventSegmentQueryInput;
+  try {
+    const body = (await request.json()) as
+      | ContactSegmentQueryInput
+      | ContactEventSegmentQueryInput;
 
-  const services = createMarketingServerServices();
-  const eventScoped = isEventScoped(body.filters);
-  const results = eventScoped
-    ? await services.segmentation.listContactEventSegmentFacts(
-      body as ContactEventSegmentQueryInput,
-    )
-    : await services.segmentation.listContactSegmentFacts(
-      body as ContactSegmentQueryInput,
+    const services = await createMarketingServerServices();
+    const { academyId } = await getMarketingServerContext(request);
+    const eventScoped = isEventScoped(body.filters);
+    const scopedInput = {
+      ...body,
+      academyId,
+    };
+    const results = eventScoped
+      ? await services.segmentation.listContactEventSegmentFacts(
+        scopedInput as ContactEventSegmentQueryInput,
+      )
+      : await services.segmentation.listContactSegmentFacts(
+        scopedInput as ContactSegmentQueryInput,
+      );
+    const summary = await services.segmentation.getAudienceSummary(
+      scopedInput as ContactSegmentQueryInput | ContactEventSegmentQueryInput,
     );
-  const summary = await services.segmentation.getAudienceSummary(body);
 
-  return NextResponse.json({
-    eventScoped,
-    results,
-    summary,
-  });
+    return NextResponse.json({
+      eventScoped,
+      results,
+      summary,
+    });
+  } catch (error) {
+    return toMarketingErrorResponse(error);
+  }
 }

@@ -51,6 +51,15 @@ export function unwrapRow<T>(
   return result.data;
 }
 
+export function ensureSuccess(
+  result: MarketingDatabaseResult<unknown>,
+  context: string,
+) {
+  if (result.error) {
+    throw new MarketingServiceError(context, result.error);
+  }
+}
+
 export function buildPage(page = 1, pageSize = 25) {
   const safePage = Math.max(1, page);
   const safePageSize = Math.max(1, Math.min(pageSize, 100));

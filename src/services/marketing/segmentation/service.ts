@@ -174,6 +174,10 @@ export function createMarketingSegmentationService(client: MarketingDatabaseClie
         .from("v_marketing_contact_segment_facts")
         .select("*", { count: "exact" });
 
+      if (input.academyId) {
+        query = query.eq("academy_id", input.academyId);
+      }
+
       query = applyContactFilters(query, filters);
       query = query
         .order("last_registered_at", { ascending: false, nullsFirst: false })
@@ -203,6 +207,10 @@ export function createMarketingSegmentationService(client: MarketingDatabaseClie
       let query = client
         .from("v_marketing_contact_event_segment_facts")
         .select("*", { count: "exact" });
+
+      if (input.academyId) {
+        query = query.eq("academy_id", input.academyId);
+      }
 
       query = applyContactEventFilters(query, filters);
       query = query

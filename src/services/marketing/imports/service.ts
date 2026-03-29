@@ -1,4 +1,9 @@
-import { buildPage, unwrapRow, unwrapRows } from "../client";
+import {
+  buildPage,
+  ensureSuccess,
+  unwrapRow,
+  unwrapRows,
+} from "../client";
 import type { MarketingDatabaseClient } from "../client";
 import type {
   CompleteMarketingImportBatchInput,
@@ -93,6 +98,47 @@ export function createMarketingImportsService(client: MarketingDatabaseClient) {
         result,
         "Failed to mark marketing import batch as failed.",
       );
+    },
+
+    async updateBatch(input: {
+      id: string;
+      file_name?: string;
+      source_provider?: string;
+      status?: string;
+      total_rows?: number;
+      imported_rows?: number;
+      merged_rows?: number;
+      invalid_rows?: number;
+      error_message?: string | null;
+      completed_at?: string | null;
+    }): Promise<MarketingImportBatch> {
+      const result = await client
+        .from("marketing_import_batches")
+        .update({
+          file_name: input.file_name,
+          source_provider: input.source_provider,
+          status: input.status,
+          total_rows: input.total_rows,
+          imported_rows: input.imported_rows,
+          merged_rows: input.merged_rows,
+          invalid_rows: input.invalid_rows,
+          error_message: input.error_message,
+          completed_at: input.completed_at,
+        })
+        .eq("id", input.id)
+        .select("*")
+        .single();
+
+      return unwrapRow(result, "Failed to update marketing import batch.");
+    },
+
+    async deleteBatch(id: string): Promise<void> {
+      const result = await client
+        .from("marketing_import_batches")
+        .delete()
+        .eq("id", id);
+
+      ensureSuccess(result, "Failed to delete marketing import batch.");
     },
   };
 }

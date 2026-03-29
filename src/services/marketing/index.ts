@@ -1,4 +1,5 @@
 import type { MarketingDatabaseClient } from "./client";
+import { createMarketingAthletesService } from "./athletes/service";
 import { createMarketingCampaignsService } from "./campaigns/service";
 import { createMarketingContactsService } from "./contacts/service";
 import { createMarketingFactsService } from "./facts/service";
@@ -21,6 +22,7 @@ export * from "./types";
 export { CONTACT_EVENT_SEGMENT_PRESETS, CONTACT_SEGMENT_PRESETS };
 export { createMarketingSegmentationService } from "./segmentation/service";
 export { createMarketingSavedSegmentsService } from "./saved-segments/service";
+export { createMarketingAthletesService } from "./athletes/service";
 export { createMarketingContactsService } from "./contacts/service";
 export { createMarketingFactsService } from "./facts/service";
 export { createMarketingImportsService } from "./imports/service";
@@ -32,6 +34,7 @@ export { createMarketingCampaignsService } from "./campaigns/service";
 export function createMarketingServices(client: MarketingDatabaseClient) {
   return {
     segmentation: createMarketingSegmentationService(client),
+    athletes: createMarketingAthletesService(client),
     contacts: createMarketingContactsService(client),
     facts: createMarketingFactsService(client),
     imports: createMarketingImportsService(client),

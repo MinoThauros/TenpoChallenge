@@ -4,8 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Palette, Code, Layers } from 'lucide-react';
+import { getOptionalAuthenticatedAppUser } from '@/server/auth/user';
 
-export default function Home() {
+export default async function Home() {
+  const user = await getOptionalAuthenticatedAppUser();
+
   return (
     <div className='min-h-screen bg-background'>
       {/* Header */}
@@ -17,7 +20,22 @@ export default function Home() {
             width={100}
             height={35}
           />
-          <Badge variant='secondary'>Hackathon UI Kit</Badge>
+          <div className='flex items-center gap-3'>
+            <Badge variant='secondary'>
+              {user ? 'Signed in' : 'Hackathon UI Kit'}
+            </Badge>
+            {user ? (
+              <form action='/auth/sign-out' method='post'>
+                <Button size='sm' variant='outline' type='submit'>
+                  Sign out
+                </Button>
+              </form>
+            ) : (
+              <Button asChild size='sm' variant='outline'>
+                <Link href='/auth/sign-in'>Sign in</Link>
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -35,6 +53,11 @@ export default function Home() {
             <Button asChild size='lg'>
               <Link href='/ds'>
                 Explore Components <ArrowRight className='ml-2 size-4' />
+              </Link>
+            </Button>
+            <Button asChild size='lg' variant='outline'>
+              <Link href='/marketing'>
+                Open Marketing
               </Link>
             </Button>
           </div>

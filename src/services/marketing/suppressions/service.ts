@@ -1,4 +1,4 @@
-import { MarketingServiceError, unwrapRow } from "../client";
+import { MarketingServiceError, unwrapRow, unwrapRows } from "../client";
 import type { MarketingDatabaseClient } from "../client";
 import type {
   CreateMarketingSuppressionInput,
@@ -9,6 +9,16 @@ export function createMarketingSuppressionsService(
   client: MarketingDatabaseClient,
 ) {
   return {
+    async listSuppressions(academyId: string): Promise<MarketingSuppression[]> {
+      const result = await client
+        .from("marketing_suppressions")
+        .select("*")
+        .eq("academy_id", academyId)
+        .order("created_at", { ascending: false });
+
+      return unwrapRows(result, "Failed to load marketing suppressions.");
+    },
+
     async suppress(
       input: CreateMarketingSuppressionInput,
     ): Promise<MarketingSuppression> {
@@ -45,6 +55,20 @@ export function createMarketingSuppressionsService(
       if (result.error) {
         throw new MarketingServiceError(
           "Failed to remove a marketing suppression.",
+          result.error,
+        );
+      }
+    },
+
+    async deleteSuppression(id: string): Promise<void> {
+      const result = await client
+        .from("marketing_suppressions")
+        .delete()
+        .eq("id", id);
+
+      if (result.error) {
+        throw new MarketingServiceError(
+          "Failed to delete marketing suppression.",
           result.error,
         );
       }

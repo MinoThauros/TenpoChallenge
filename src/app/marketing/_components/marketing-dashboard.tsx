@@ -7,6 +7,7 @@ import type {
   ContactEventSegmentFilters,
   ContactSegmentFilters,
   MarketingCampaign,
+  MarketingCampaignDispatchState,
   MarketingContactEventSegmentFact,
   MarketingContactSegmentFact,
   MarketingImportBatch,
@@ -64,6 +65,11 @@ export function MarketingDashboard({ initialTab }: MarketingDashboardProps) {
   const [campaignSearch, setCampaignSearch] = useState("");
   const deferredCampaignSearch = useDeferredValue(campaignSearch);
   const [campaigns, setCampaigns] = useState<Page<MarketingCampaign> | null>(null);
+  const [dispatchStates, setDispatchStates] = useState<Page<MarketingCampaignDispatchState> | null>(
+    null,
+  );
+  const [dispatchStatesLoading, setDispatchStatesLoading] = useState(true);
+  const [dispatchStatesError, setDispatchStatesError] = useState<string | null>(null);
   const [imports, setImports] = useState<Page<MarketingImportBatch> | null>(null);
   const [savedSegments, setSavedSegments] = useState<MarketingSavedSegment[]>([]);
   const [audienceSelection, setAudienceSelection] = useState<AudienceSelectionState>(
@@ -150,6 +156,66 @@ export function MarketingDashboard({ initialTab }: MarketingDashboardProps) {
       setCampaigns(response);
     });
   }, [bootstrap, deferredCampaignSearch]);
+
+  useEffect(() => {
+    if (!bootstrap) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadDispatchStates(showLoading: boolean) {
+      if (showLoading) {
+        setDispatchStatesLoading(true);
+      }
+
+      try {
+        const response = await fetchJson<Page<MarketingCampaignDispatchState>>(
+          "/api/marketing/campaign-dispatches?page=1&pageSize=25",
+        );
+
+        if (!cancelled) {
+          setDispatchStates(response);
+          setDispatchStatesError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDispatchStatesError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load campaign dispatch activity.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setDispatchStatesLoading(false);
+        }
+      }
+    }
+
+    void loadDispatchStates(true);
+
+    const intervalId = window.setInterval(() => {
+      void loadDispatchStates(false);
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [bootstrap]);
+
+  function formatDateTime(value?: string | null) {
+    if (!value) {
+      return "—";
+    }
+
+    return new Date(value).toLocaleString();
+  }
+
+  const campaignNameById = new Map(
+    campaigns?.data.map((campaign) => [campaign.id, campaign.name]) ?? [],
+  );
 
   async function handleSaveSegment(
     values: { name: string; description?: string },
@@ -374,7 +440,13 @@ export function MarketingDashboard({ initialTab }: MarketingDashboardProps) {
                   </TableHeader>
                   <TableBody>
                     {campaigns.data.map((campaign) => (
-                      <TableRow key={campaign.id}>
+                      <TableRow
+                        key={campaign.id}
+                        className="cursor-pointer"
+                        onClick={() => {
+                          router.push(`/marketing/campaigns/${campaign.id}`);
+                        }}
+                      >
                         <TableCell className="font-medium">{campaign.name}</TableCell>
                         <TableCell>
                           <Badge variant={statusBadgeVariant(campaign.status)}>
@@ -392,6 +464,80 @@ export function MarketingDashboard({ initialTab }: MarketingDashboardProps) {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Dispatch activity</CardTitle>
+                  <CardDescription>
+                    Live campaign run state from the dispatch views. This table refreshes automatically every 5 seconds.
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">
+                  {dispatchStates?.count ?? dispatchStates?.data.length ?? 0} runs
+                </Badge>
+              </CardHeader>
+              <CardContent>
+                {dispatchStatesError ? (
+                  <Alert variant="error">
+                    <AlertTitle>Unable to load dispatch activity</AlertTitle>
+                    <AlertDescription>{dispatchStatesError}</AlertDescription>
+                  </Alert>
+                ) : dispatchStatesLoading && !dispatchStates ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                  </div>
+                ) : !dispatchStates?.data.length ? (
+                  <Alert variant="info">
+                    <AlertTitle>No dispatch runs yet</AlertTitle>
+                    <AlertDescription>
+                      The dispatch worker has not created any campaign runs yet. Once it does, progress will show up here automatically.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Campaign</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Progress</TableHead>
+                        <TableHead>Recipients</TableHead>
+                        <TableHead>Attempts</TableHead>
+                        <TableHead>Last activity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dispatchStates.data.map((dispatchState) => (
+                        <TableRow key={dispatchState.dispatch_id}>
+                          <TableCell className="font-medium">
+                            {campaignNameById.get(dispatchState.campaign_id) ?? dispatchState.campaign_id}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusBadgeVariant(dispatchState.dispatch_status)}>
+                              {toTitleCase(dispatchState.dispatch_status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{dispatchState.sent_percent}% sent</TableCell>
+                          <TableCell>
+                            {dispatchState.sent_recipients}/{dispatchState.total_recipients} sent
+                          </TableCell>
+                          <TableCell>{dispatchState.total_attempts}</TableCell>
+                          <TableCell>
+                            {formatDateTime(
+                              dispatchState.last_attempted_at
+                                ?? dispatchState.last_sent_at
+                                ?? dispatchState.updated_at,
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -10,6 +10,20 @@ import type {
 
 export function createMarketingCampaignsService(client: MarketingDatabaseClient) {
   return {
+    async getCampaign(input: {
+      id: string;
+      academyId: string;
+    }): Promise<MarketingCampaign> {
+      const result = await client
+        .from("marketing_campaigns")
+        .select("*")
+        .eq("id", input.id)
+        .eq("academy_id", input.academyId)
+        .single();
+
+      return unwrapRow<MarketingCampaign>(result, "Failed to load marketing campaign.");
+    },
+
     async listCampaigns(
       input: ListMarketingCampaignsInput,
     ): Promise<Page<MarketingCampaign>> {

@@ -17,6 +17,8 @@ export type {
   LinkMarketingContactAthleteInput,
   MarketingSavedSegment,
   MarketingCampaign,
+  MarketingCampaignDispatchState,
+  MarketingDispatchRecipientActivity,
   MarketingAthlete,
   MarketingContactCreatedVia,
   MarketingContact,

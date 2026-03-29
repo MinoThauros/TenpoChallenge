@@ -24,6 +24,26 @@ export type MarketingCampaignStatus =
   | "sent"
   | "failed"
   | "canceled";
+export type MarketingCampaignDispatchStatus =
+  | "queued"
+  | "sending"
+  | "completed"
+  | "failed"
+  | "canceled";
+export type MarketingDispatchRecipientStatus =
+  | "pending"
+  | "leased"
+  | "sent"
+  | "retry_scheduled"
+  | "failed"
+  | "suppressed"
+  | "canceled";
+export type MarketingEmailSendAttemptStatus =
+  | "started"
+  | "sent"
+  | "failed"
+  | "retry_scheduled"
+  | "canceled";
 export type MarketingImportBatchStatus = "processing" | "completed" | "failed";
 export type MarketingImportSourceProvider =
   | "csv"
@@ -146,6 +166,57 @@ export interface MarketingCampaign {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface MarketingCampaignDispatchState {
+  dispatch_id: string;
+  academy_id: string;
+  campaign_id: string;
+  sender_mailbox_id: string | null;
+  dispatch_status: MarketingCampaignDispatchStatus;
+  scheduled_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  inserted_at: string;
+  updated_at: string;
+  total_recipients: number;
+  pending_recipients: number;
+  leased_recipients: number;
+  sent_recipients: number;
+  retry_scheduled_recipients: number;
+  failed_recipients: number;
+  suppressed_recipients: number;
+  canceled_recipients: number;
+  total_attempts: number;
+  last_attempted_at: string | null;
+  last_sent_at: string | null;
+  sent_percent: number;
+}
+
+export interface MarketingDispatchRecipientActivity {
+  dispatch_recipient_id: string;
+  dispatch_id: string;
+  campaign_id: string;
+  academy_id: string;
+  marketing_contact_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  contact_email: string;
+  recipient_email: string;
+  recipient_status: MarketingDispatchRecipientStatus;
+  sent_at: string | null;
+  attempt_count: number;
+  last_error_message: string | null;
+  provider_message_id: string | null;
+  inserted_at: string;
+  updated_at: string;
+  dispatch_status: MarketingCampaignDispatchStatus;
+  latest_attempt_status: MarketingEmailSendAttemptStatus | null;
+  latest_attempt_requested_at: string | null;
+  latest_attempt_completed_at: string | null;
+  latest_attempt_retry_after: string | null;
+  latest_attempt_provider_message_id: string | null;
+  latest_attempt_error_message: string | null;
 }
 
 export interface MarketingSavedSegment {
@@ -407,6 +478,17 @@ export interface CreateMarketingSuppressionInput {
 export interface ListMarketingCampaignsInput extends PaginationInput {
   academyId: string;
   search?: string;
+}
+
+export interface ListMarketingCampaignDispatchStatesInput extends PaginationInput {
+  academyId: string;
+  campaignId?: string;
+  activeOnly?: boolean;
+}
+
+export interface ListMarketingDispatchRecipientActivityInput extends PaginationInput {
+  academyId: string;
+  campaignId: string;
 }
 
 export interface ListMarketingImportBatchesInput extends PaginationInput {

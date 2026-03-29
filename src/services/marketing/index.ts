@@ -2,6 +2,7 @@ import type { MarketingDatabaseClient } from "./client";
 import { createMarketingAthletesService } from "./athletes/service";
 import { createMarketingCampaignsService } from "./campaigns/service";
 import { createMarketingContactsService } from "./contacts/service";
+import { createMarketingDispatchesService } from "./dispatches/service";
 import { createMarketingFactsService } from "./facts/service";
 import { createMarketingImportsService } from "./imports/service";
 import {
@@ -24,6 +25,7 @@ export { createMarketingSegmentationService } from "./segmentation/service";
 export { createMarketingSavedSegmentsService } from "./saved-segments/service";
 export { createMarketingAthletesService } from "./athletes/service";
 export { createMarketingContactsService } from "./contacts/service";
+export { createMarketingDispatchesService } from "./dispatches/service";
 export { createMarketingFactsService } from "./facts/service";
 export { createMarketingImportsService } from "./imports/service";
 export { createMarketingSuppressionsService } from "./suppressions/service";
@@ -36,6 +38,7 @@ export function createMarketingServices(client: MarketingDatabaseClient) {
     segmentation: createMarketingSegmentationService(client),
     athletes: createMarketingAthletesService(client),
     contacts: createMarketingContactsService(client),
+    dispatches: createMarketingDispatchesService(client),
     facts: createMarketingFactsService(client),
     imports: createMarketingImportsService(client),
     savedSegments: createMarketingSavedSegmentsService(client),

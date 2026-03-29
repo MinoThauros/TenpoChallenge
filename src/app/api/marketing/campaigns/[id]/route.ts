@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createMarketingServerServices, toMarketingErrorResponse } from "@/server/marketing/service";
+import {
+  createMarketingServerServices,
+  getMarketingServerContext,
+  toMarketingErrorResponse,
+} from "@/server/marketing/service";
 
 type RouteContext = {
   params: Promise<{
@@ -11,6 +15,34 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const services = await createMarketingServerServices();
+    const { academyId } = await getMarketingServerContext(request);
+    const existingCampaign = await services.campaigns.getCampaign({
+      id,
+      academyId,
+    });
+    const dispatchStates = await services.dispatches.listDispatchStates({
+      academyId,
+      campaignId: id,
+      page: 1,
+      pageSize: 25,
+    });
+    const campaignLocked = existingCampaign.status === "sending"
+      || existingCampaign.status === "sent"
+      || dispatchStates.data.some((dispatchState) =>
+        dispatchState.dispatch_status === "sending"
+        || dispatchState.dispatch_status === "completed"
+      );
+
+    if (campaignLocked) {
+      return NextResponse.json(
+        {
+          error:
+            "This campaign can no longer be edited because delivery has started or already completed.",
+        },
+        { status: 409 },
+      );
+    }
+
     const body = (await request.json()) as {
       name?: string;
       subject?: string;
@@ -29,6 +61,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const campaign = await services.campaigns.updateCampaign({
       id,
       ...body,
+    });
+
+    return NextResponse.json(campaign);
+  } catch (error) {
+    return toMarketingErrorResponse(error);
+  }
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  try {
+    const { id } = await context.params;
+    const services = await createMarketingServerServices();
+    const { academyId } = await getMarketingServerContext(request);
+    const campaign = await services.campaigns.getCampaign({
+      id,
+      academyId,
     });
 
     return NextResponse.json(campaign);

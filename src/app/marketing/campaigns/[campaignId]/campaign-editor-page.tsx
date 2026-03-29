@@ -292,81 +292,149 @@ export function CampaignEditorPage({
           </Card>
         ) : null}
 
-        <Card className="mb-6">
-          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle>Recipient outcomes</CardTitle>
-              <CardDescription>
-                Detailed send results from the recipient activity view. Delivered and failed contacts are visible here while the campaign runs.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="success">{deliveredRecipients.length} delivered</Badge>
-              <Badge variant="error">{failedRecipients.length} failed / retry</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {recipientActivity.data.length ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Recipient</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Attempts</TableHead>
-                    <TableHead>Last error</TableHead>
-                    <TableHead>Last activity</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recipientActivity.data.map((recipient) => (
-                    <TableRow key={recipient.dispatch_recipient_id}>
-                      <TableCell>
-                        <div className="font-medium">
-                          {[recipient.first_name, recipient.last_name].filter(Boolean).join(" ") || "Unnamed contact"}
-                        </div>
-                        <div className="text-xs text-muted-foreground">{recipient.recipient_email}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusBadgeVariant(recipient.recipient_status)}>
-                          {toTitleCase(recipient.recipient_status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{recipient.attempt_count}</TableCell>
-                      <TableCell className="max-w-xs text-sm text-muted-foreground">
-                        {recipient.last_error_message ?? recipient.latest_attempt_error_message ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        {formatDateTime(
-                          recipient.sent_at
-                            ?? recipient.latest_attempt_completed_at
-                            ?? recipient.latest_attempt_requested_at
-                            ?? recipient.updated_at,
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <Alert variant="info">
-                <AlertTitle>No recipient activity yet</AlertTitle>
-                <AlertDescription>
-                  Recipient-level delivery results will appear here as soon as a dispatch begins processing contacts.
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)] lg:items-start">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Recipient outcomes</CardTitle>
+                  <CardDescription>
+                    This is the main delivery activity surface for the campaign. As the worker processes recipients, this table shows who was sent, who needs a retry, and what failed.
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="success">{deliveredRecipients.length} delivered</Badge>
+                  <Badge variant="error">{failedRecipients.length} failed / retry</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {recipientActivity.data.length ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Recipient</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Attempts</TableHead>
+                        <TableHead>Last error</TableHead>
+                        <TableHead>Last activity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recipientActivity.data.map((recipient) => (
+                        <TableRow key={recipient.dispatch_recipient_id}>
+                          <TableCell>
+                            <div className="font-medium">
+                              {[recipient.first_name, recipient.last_name].filter(Boolean).join(" ") || "Unnamed contact"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{recipient.recipient_email}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={statusBadgeVariant(recipient.recipient_status)}>
+                              {toTitleCase(recipient.recipient_status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{recipient.attempt_count}</TableCell>
+                          <TableCell className="max-w-xs text-sm text-muted-foreground">
+                            {recipient.last_error_message ?? recipient.latest_attempt_error_message ?? "—"}
+                          </TableCell>
+                          <TableCell>
+                            {formatDateTime(
+                              recipient.sent_at
+                                ?? recipient.latest_attempt_completed_at
+                                ?? recipient.latest_attempt_requested_at
+                                ?? recipient.updated_at,
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <Alert variant="info">
+                    <AlertTitle>No recipient activity yet</AlertTitle>
+                    <AlertDescription>
+                      Recipient-level delivery results will appear here as soon as a dispatch begins processing contacts.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Edit campaign</CardTitle>
-              <CardDescription>
-                Manage the sender details, message content, and when this campaign should begin.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <Card>
+              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle>Dispatch runs</CardTitle>
+                  <CardDescription>
+                    Live send progress for this campaign. This refreshes automatically every 5 seconds while a dispatch is active.
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">{dispatchStates.data.length} runs</Badge>
+              </CardHeader>
+              <CardContent>
+                {dispatchStatesError ? (
+                  <Alert variant="error">
+                    <AlertTitle>Unable to refresh dispatch state</AlertTitle>
+                    <AlertDescription>{dispatchStatesError}</AlertDescription>
+                  </Alert>
+                ) : loadingDispatchStates && !dispatchStates.data.length ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                  </div>
+                ) : !dispatchStates.data.length ? (
+                  <Alert variant="info">
+                    <AlertTitle>No dispatch runs yet</AlertTitle>
+                    <AlertDescription>
+                      Delivery has not started for this campaign. Once the worker creates a dispatch run, it will appear here.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Recipients</TableHead>
+                        <TableHead>Attempts</TableHead>
+                        <TableHead>Last activity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dispatchStates.data.map((dispatchState) => (
+                        <TableRow key={dispatchState.dispatch_id}>
+                          <TableCell>
+                            <Badge variant={statusBadgeVariant(dispatchState.dispatch_status)}>
+                              {toTitleCase(dispatchState.dispatch_status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {dispatchState.sent_recipients}/{dispatchState.total_recipients} sent
+                          </TableCell>
+                          <TableCell>{dispatchState.total_attempts}</TableCell>
+                          <TableCell>
+                            {formatDateTime(
+                              dispatchState.last_attempted_at
+                                ?? dispatchState.last_sent_at
+                                ?? dispatchState.updated_at,
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6 lg:sticky lg:top-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit campaign</CardTitle>
+                <CardDescription>
+                  Manage the sender details, message content, and when this campaign should begin. Delivery activity stays visible beside the editor so you can review results without leaving the page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
               <form className="space-y-5" onSubmit={handleSubmit}>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -509,9 +577,8 @@ export function CampaignEditorPage({
                 </div>
               </form>
             </CardContent>
-          </Card>
+            </Card>
 
-          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Campaign timeline</CardTitle>
@@ -532,71 +599,6 @@ export function CampaignEditorPage({
                 <div>
                   <span className="font-medium">Sent:</span> {formatDateTime(campaign.sent_at)}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <CardTitle>Dispatch runs</CardTitle>
-                  <CardDescription>
-                    Live send progress for this campaign. The table below refreshes automatically every 5 seconds.
-                  </CardDescription>
-                </div>
-                <Badge variant="secondary">{dispatchStates.data.length} runs</Badge>
-              </CardHeader>
-              <CardContent>
-                {dispatchStatesError ? (
-                  <Alert variant="error">
-                    <AlertTitle>Unable to refresh dispatch state</AlertTitle>
-                    <AlertDescription>{dispatchStatesError}</AlertDescription>
-                  </Alert>
-                ) : loadingDispatchStates && !dispatchStates.data.length ? (
-                  <div className="space-y-3">
-                    <Skeleton className="h-10 rounded-lg" />
-                    <Skeleton className="h-10 rounded-lg" />
-                  </div>
-                ) : !dispatchStates.data.length ? (
-                  <Alert variant="info">
-                    <AlertTitle>No dispatch runs yet</AlertTitle>
-                    <AlertDescription>
-                      Delivery has not started for this campaign. Once the worker creates a dispatch run, it will appear here.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Recipients</TableHead>
-                        <TableHead>Attempts</TableHead>
-                        <TableHead>Last activity</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dispatchStates.data.map((dispatchState) => (
-                        <TableRow key={dispatchState.dispatch_id}>
-                          <TableCell>
-                            <Badge variant={statusBadgeVariant(dispatchState.dispatch_status)}>
-                              {toTitleCase(dispatchState.dispatch_status)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {dispatchState.sent_recipients}/{dispatchState.total_recipients} sent
-                          </TableCell>
-                          <TableCell>{dispatchState.total_attempts}</TableCell>
-                          <TableCell>
-                            {formatDateTime(
-                              dispatchState.last_attempted_at
-                                ?? dispatchState.last_sent_at
-                                ?? dispatchState.updated_at,
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
               </CardContent>
             </Card>
           </div>

@@ -114,12 +114,12 @@ function EventRuleRow({
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button type='button' variant='outline' className='w-full justify-start'>
-              {rule.eventLabel || 'Search an event'}
+              {rule.eventLabel || 'Choose an event'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className='w-[360px] p-0' align='start'>
             <Command>
-              <CommandInput placeholder='Search event name' />
+              <CommandInput placeholder='Search events' />
               <CommandList>
                 <CommandEmpty>No events found.</CommandEmpty>
                 <CommandGroup>
@@ -147,7 +147,7 @@ function EventRuleRow({
       </div>
 
       <div className='space-y-2'>
-        <Label>Status</Label>
+        <Label>Parent status</Label>
         <Select
           value={rule.status}
           onValueChange={(value) =>
@@ -212,7 +212,7 @@ function PreviewFamilyRow({
         </div>
         <div className='min-w-0'>
           <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-            Detail
+            Details
           </div>
           <Button
             type='button'
@@ -251,7 +251,7 @@ function PreviewFamilyRow({
           <div className='space-y-4'>
             <div>
               <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                Matching activity
+                Included because
               </div>
               <div className='mt-2 flex flex-wrap gap-2'>
                 {row.matchingActivities.map((activity) => (
@@ -264,7 +264,7 @@ function PreviewFamilyRow({
 
             <div>
               <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                Athletes
+                Players
               </div>
               <div className='mt-2'>
                 {loadingAthletes ? (
@@ -282,7 +282,7 @@ function PreviewFamilyRow({
                   </div>
                 ) : (
                   <div className='text-sm text-muted-foreground'>
-                    No linked athletes yet.
+                    No player names available.
                   </div>
                 )}
               </div>
@@ -340,15 +340,15 @@ function AudienceReviewSheet({
   return (
     <div className='flex h-full min-h-0 flex-col'>
       <SheetHeader className='border-b border-border/50 px-6 py-5'>
-        <SheetTitle>Review and trim audience</SheetTitle>
+        <SheetTitle>Review recipients</SheetTitle>
         <SheetDescription>
-          Search someone quickly, remove them if needed, and keep everything else hidden.
+          Search for a parent, and remove anyone who should not get this message.
         </SheetDescription>
       </SheetHeader>
 
       <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-6 py-4'>
         <div className='text-sm text-muted-foreground'>
-          {previewLoading ? 'Loading audience…' : `${preview?.summary.matchingContacts ?? 0} matching families`}
+          {previewLoading ? 'Loading recipients…' : `${preview?.summary.matchingContacts ?? 0} matching parents`}
         </div>
         <div className='flex items-center gap-2'>
           <Button
@@ -357,7 +357,7 @@ function AudienceReviewSheet({
             size='sm'
             onClick={() => onReviewModeChange('active')}
           >
-            Active
+            Included
           </Button>
           <Button
             type='button'
@@ -376,7 +376,7 @@ function AudienceReviewSheet({
           <Input
             value={reviewQuery}
             onChange={(event) => onReviewQueryChange(event.target.value)}
-            placeholder='Search family name or email'
+            placeholder='Search parent name or email'
             className='pl-9'
           />
         </div>
@@ -392,10 +392,10 @@ function AudienceReviewSheet({
         ) : !filteredRows.length ? (
           <div className='rounded-2xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground'>
             {reviewMode === 'removed'
-              ? 'No removed recipients.'
+              ? 'No removed parents.'
               : trimmedQuery
-                ? 'No families match that search.'
-                : 'Add audience rules in Step 1 to review recipients here.'}
+                ? 'No parents match that search.'
+                : 'Choose an event first to review recipients here.'}
           </div>
         ) : (
           <div className='space-y-3'>
@@ -433,7 +433,7 @@ function improveDraft(subject: string, bodyHtml: string) {
     : 'Quick update from the academy';
 
   const paragraphs = [
-    '<p>Hi families,</p>',
+    '<p>Hi parents,</p>',
     `<p>${opening.charAt(0).toUpperCase()}${opening.slice(1)}</p>`,
   ];
 
@@ -685,7 +685,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
         }),
       );
 
-      toast.success('Demo campaign scheduled in this browser.');
+      toast.success('Campaign scheduled.');
       router.push('/marketing-v2');
     } catch (error) {
       setSubmitError(
@@ -701,10 +701,10 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
       <div className='mx-auto max-w-6xl px-6 py-10'>
         <div className='mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
           <div className='max-w-2xl space-y-3'>
-            <Badge variant='secondary'>Marketing V2</Badge>
+            <Badge variant='secondary'>Messages</Badge>
             <h1 className='text-h3'>New campaign</h1>
             <p className='text-body1 text-muted-foreground'>
-              Pick the right families, write the message, and keep the whole flow calm.
+              Choose the right parents, write the message, and schedule it in a few minutes.
             </p>
           </div>
           <Button asChild variant='outline'>
@@ -721,9 +721,9 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
               <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
                 Step 1
               </div>
-              <div className='mt-2 text-xl font-medium'>Segmentation</div>
+              <div className='mt-2 text-xl font-medium'>Configure Audience</div>
               <div className='mt-1 text-sm text-muted-foreground'>
-                Choose event and family status rules without presets.
+                Build your audience based on activy on past events
               </div>
             </CardContent>
           </Card>
@@ -732,9 +732,9 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
               <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
                 Step 2
               </div>
-              <div className='mt-2 text-xl font-medium'>Composition + scheduling</div>
+              <div className='mt-2 text-xl font-medium'>Write and schedule</div>
               <div className='mt-1 text-sm text-muted-foreground'>
-                Keep the message simple, polished, and ready to send.
+                Write the message and choose when it goes out.
               </div>
             </CardContent>
           </Card>
@@ -743,9 +743,9 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
         {step === 1 ? (
           <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
             <CardHeader>
-              <CardTitle>Who should get this campaign?</CardTitle>
+              <CardTitle>Who should get this message?</CardTitle>
               <CardDescription>
-                Add one or more event filters. Each filter is one event and one family status.
+                Add one or more filters. Each one is an event and a parent status.
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
@@ -778,7 +778,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                   }}
                 >
                   <Plus className='size-4' />
-                  Add another filter
+                  Add another group
                 </Button>
 
                 <Sheet
@@ -793,7 +793,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                 >
                   <SheetTrigger asChild>
                     <Button type='button' variant='secondary' disabled={!preview?.summary.matchingContacts}>
-                      Review and trim audience
+                      Review recipients
                       <Badge variant='outline' className='ml-1'>
                         {previewLoading ? '...' : preview?.summary.matchingContacts ?? 0}
                       </Badge>
@@ -821,7 +821,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
 
               <div className='rounded-2xl border border-border/60 bg-secondary/35 px-4 py-4'>
                 <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Matching families
+                  Matching parents
                 </div>
                 <div className='mt-2 text-3xl font-medium'>
                   {previewLoading ? '...' : preview?.summary.matchingContacts ?? 0}
@@ -834,9 +834,9 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           <div className='space-y-6'>
             <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
               <CardHeader>
-                <CardTitle>Campaign details</CardTitle>
+                <CardTitle>Message details</CardTitle>
                 <CardDescription>
-                  Keep it simple: a clear subject and a clean message.
+                  Keep it simple: a clear subject and a warm, easy-to-read message.
                 </CardDescription>
               </CardHeader>
               <CardContent className='space-y-5'>
@@ -867,7 +867,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                     <div>
                       <Label>Body</Label>
                       <div className='text-sm text-muted-foreground'>
-                        Use a clean message with a clear next step.
+                        Keep it short, clear, and easy to scan.
                       </div>
                     </div>
                     <Button
@@ -877,11 +877,11 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                         const improved = improveDraft(subject, bodyHtml);
                         setSubject(improved.subject);
                         setBodyHtml(improved.bodyHtml);
-                        toast.success('Draft polished with the quick AI helper.');
+                        toast.success('Message polished.');
                       }}
                     >
                       <Sparkles className='size-4' />
-                      Improve with AI
+                      Polish with AI
                     </Button>
                   </div>
                   <SimpleRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
@@ -893,7 +893,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
               <CardHeader>
                 <CardTitle>Scheduling</CardTitle>
                 <CardDescription>
-                  Pick when this campaign should go out. Every V2 campaign is scheduled.
+                  Pick when parents should receive this message.
                 </CardDescription>
               </CardHeader>
               <CardContent className='grid gap-4 md:grid-cols-2'>
@@ -913,7 +913,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
 
         {submitError ? (
           <Alert variant='error' className='mt-6'>
-            <AlertTitle>Campaign not created</AlertTitle>
+            <AlertTitle>Couldn’t schedule campaign</AlertTitle>
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         ) : null}
@@ -937,7 +937,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           ) : (
             <div className='flex flex-wrap gap-3'>
               <Button type='button' variant='outline' onClick={() => setStep(1)}>
-                Edit audience
+                Edit recipients
               </Button>
               <Button type='button' onClick={handleSubmit} disabled={submitting || !canSubmit}>
                 <CalendarClock className='size-4' />

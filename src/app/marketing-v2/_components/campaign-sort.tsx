@@ -22,11 +22,11 @@ export function CampaignSort({ value, onChange }: CampaignSortProps) {
       <ArrowDownAZ className='size-4 text-muted-foreground' />
       <Select value={value} onValueChange={(nextValue) => onChange(nextValue as CampaignSortOrder)}>
         <SelectTrigger className='w-[180px] bg-card'>
-          <SelectValue placeholder='Sort campaigns' />
+          <SelectValue placeholder='Sort' />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value='latest'>Latest created first</SelectItem>
-          <SelectItem value='oldest'>Oldest created first</SelectItem>
+          <SelectItem value='latest'>Newest first</SelectItem>
+          <SelectItem value='oldest'>Oldest first</SelectItem>
         </SelectContent>
       </Select>
     </div>

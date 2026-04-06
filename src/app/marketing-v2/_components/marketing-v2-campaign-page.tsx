@@ -202,30 +202,30 @@ function campaignHeaderCopy(
 ) {
   if (campaign.status === 'failed') {
     const failedRecipients = dispatchState?.failed_recipients ?? 0;
-    const retryingRecipients = dispatchState?.retry_scheduled_recipients ?? 0;
+    const delayedRecipients = dispatchState?.retry_scheduled_recipients ?? 0;
 
-    if (failedRecipients || retryingRecipients) {
-      const parts = [
-        failedRecipients ? `${failedRecipients} failed` : null,
-        retryingRecipients ? `${retryingRecipients} retrying` : null,
-      ].filter(Boolean);
-      return `This campaign needs attention: ${parts.join(' and ')}.`;
+    if (delayedRecipients > 0) {
+      return `Delivery is taking a little longer for ${delayedRecipients} ${delayedRecipients === 1 ? 'parent' : 'parents'}. We’ll keep trying automatically.`;
     }
 
-    return 'This campaign needs attention before it can fully go out.';
+    if (failedRecipients > 0) {
+      return `${failedRecipients} ${failedRecipients === 1 ? 'parent did' : 'parents did'} not receive this message.`;
+    }
+
+    return 'This message could not be delivered to everyone.';
   }
 
   if (campaign.status === 'canceled') {
-    return 'This campaign was canceled before sending finished.';
+    return 'This message was stopped before it finished sending.';
   }
 
   switch (campaign.status) {
     case 'draft':
-      return 'This campaign is still being prepared.';
+      return 'This message is not scheduled yet.';
     case 'sending':
-      return 'This campaign is currently going out to families.';
+      return 'This message is going out to parents now.';
     case 'sent':
-      return `This campaign was sent ${formatDateTime(campaign.sent_at)}.`;
+      return `This message went out ${formatDateTime(campaign.sent_at)}.`;
     default:
       return `Scheduled for ${formatDateTime(campaign.scheduled_at)}.`;
   }
@@ -249,7 +249,10 @@ function isLockedForEditing(campaign: MarketingCampaign) {
   return isSameLocalDay(new Date(campaign.scheduled_at), new Date());
 }
 
-function statusBadgeVariant(status: MarketingCampaign['status']) {
+function statusBadgeVariant(
+  status: MarketingCampaign['status'],
+  dispatchState: MarketingCampaignDispatchState | null,
+) {
   if (status === 'sent') {
     return 'success' as const;
   }
@@ -259,20 +262,23 @@ function statusBadgeVariant(status: MarketingCampaign['status']) {
   }
 
   if (status === 'failed' || status === 'canceled') {
-    return 'error' as const;
+    return (dispatchState?.retry_scheduled_recipients ?? 0) > 0 ? 'warning' as const : 'error' as const;
   }
 
   return 'secondary' as const;
 }
 
-function statusLabel(status: MarketingCampaign['status']) {
+function statusLabel(
+  status: MarketingCampaign['status'],
+  dispatchState: MarketingCampaignDispatchState | null,
+) {
   switch (status) {
     case 'canceled':
-      return 'Canceled';
+      return 'Stopped';
     case 'draft':
       return 'Draft';
     case 'failed':
-      return 'Needs attention';
+      return (dispatchState?.retry_scheduled_recipients ?? 0) > 0 ? 'Delayed' : 'Failed';
     case 'scheduled':
       return 'Scheduled';
     case 'sending':
@@ -289,11 +295,11 @@ function deliveryStateLabel(status: MarketingDispatchRecipientActivity['recipien
     case 'sent':
       return 'Sent';
     case 'retry_scheduled':
-      return 'Retrying';
+      return 'Delayed';
     case 'failed':
       return 'Failed';
     case 'canceled':
-      return 'Canceled';
+      return 'Stopped';
     case 'leased':
       return 'In progress';
     case 'suppressed':
@@ -317,6 +323,43 @@ function deliveryStateVariant(status: MarketingDispatchRecipientActivity['recipi
   }
 
   return 'secondary' as const;
+}
+
+function humanizeFailureReason(errorMessage?: string | null) {
+  const normalized = errorMessage?.trim().toLowerCase() ?? '';
+
+  if (!normalized) {
+    return 'could not be delivered';
+  }
+
+  if (
+    normalized.includes('recipient server rejected')
+    || normalized.includes('mailbox unavailable')
+    || normalized.includes('rejected')
+  ) {
+    return 'was blocked by the recipient\'s mailbox';
+  }
+
+  if (normalized.includes('timeout') || normalized.includes('temporarily unavailable')) {
+    return 'ran into a temporary delivery problem';
+  }
+
+  return 'could not be delivered';
+}
+
+function deliveryStateMessage(row: MarketingDispatchRecipientActivity) {
+  switch (row.recipient_status) {
+    case 'retry_scheduled':
+      return 'Delivery is delayed. No action required.';
+    case 'failed':
+      return `This message ${humanizeFailureReason(row.last_error_message)}.`;
+    case 'canceled':
+      return 'Sending was stopped before this message went out.';
+    case 'suppressed':
+      return 'This parent is not available to receive messages.';
+    default:
+      return null;
+  }
 }
 
 function readAudienceDefinition(campaign: MarketingCampaign): AudienceDefinition {
@@ -390,7 +433,7 @@ function buildAudienceCopy(
 
   if (activeRules.length) {
     const statuses = Array.from(new Set(activeRules.map((rule) => rule.status)));
-    const statusCopy = statuses.length === 1 ? `${statuses[0]} families` : 'families';
+    const statusCopy = statuses.length === 1 ? `${statuses[0]} parents` : 'parents';
     const eventCopy = activeRules.length === 1
       ? activeRules[0].eventLabel
       : `${activeRules.length} past events`;
@@ -404,7 +447,7 @@ function buildAudienceCopy(
     return `To ${presetLabel.toLowerCase()}`;
   }
 
-  return 'To all marketable contacts';
+  return 'To all parents who can receive messages';
 }
 
 function improveDraft(subject: string, bodyHtml: string) {
@@ -422,7 +465,7 @@ function improveDraft(subject: string, bodyHtml: string) {
     : 'Quick update from the academy';
 
   const paragraphs = [
-    '<p>Hi families,</p>',
+    '<p>Hi parents,</p>',
     `<p>${opening.charAt(0).toUpperCase()}${opening.slice(1)}</p>`,
   ];
 
@@ -467,12 +510,12 @@ function EventRuleRow({
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button type='button' variant='outline' className='w-full justify-start' disabled={disabled}>
-              {rule.eventLabel || 'Search an event'}
+              {rule.eventLabel || 'Choose an event'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className='w-[360px] p-0' align='start'>
             <Command>
-              <CommandInput placeholder='Search event name' />
+              <CommandInput placeholder='Search events' />
               <CommandList>
                 <CommandEmpty>No events found.</CommandEmpty>
                 <CommandGroup>
@@ -500,7 +543,7 @@ function EventRuleRow({
       </div>
 
       <div className='space-y-2'>
-        <Label>Status</Label>
+        <Label>Parent status</Label>
         <Select
           value={rule.status}
           onValueChange={(value) =>
@@ -594,7 +637,7 @@ function RecipientRow({
             {row.matchingActivities.length ? (
               <div>
                 <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Matching activity
+                  Included because
                 </div>
                 <div className='mt-2 flex flex-wrap gap-2'>
                   {row.matchingActivities.map((activity) => (
@@ -608,7 +651,7 @@ function RecipientRow({
 
             <div>
               <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                Athletes
+                Players
               </div>
               <div className='mt-2'>
                 {loadingAthletes ? (
@@ -625,7 +668,7 @@ function RecipientRow({
                     ))}
                   </div>
                 ) : (
-                  <div className='text-sm text-muted-foreground'>No linked athletes yet.</div>
+                  <div className='text-sm text-muted-foreground'>No player names available.</div>
                 )}
               </div>
             </div>
@@ -690,14 +733,14 @@ function AudienceReviewSheet({
         <SheetTitle>{title}</SheetTitle>
         <SheetDescription>
           {editable
-            ? 'Search someone quickly, remove them if needed, and keep the rest hidden.'
-            : 'Search families quickly and expand only when you need more detail.'}
+            ? 'Search for a parent, and remove anyone who should not get this message.'
+            : 'Search parents and open details only when you need them.'}
         </SheetDescription>
       </SheetHeader>
 
       <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-6 py-4'>
         <div className='text-sm text-muted-foreground'>
-          {previewLoading ? 'Loading audience…' : `${activeRows.length} matching families`}
+          {previewLoading ? 'Loading recipients…' : `${activeRows.length} matching parents`}
         </div>
         {editable ? (
           <div className='flex items-center gap-2'>
@@ -707,7 +750,7 @@ function AudienceReviewSheet({
               size='sm'
               onClick={() => onReviewModeChange('active')}
             >
-              Active
+              Included
             </Button>
             <Button
               type='button'
@@ -727,7 +770,7 @@ function AudienceReviewSheet({
           <Input
             value={reviewQuery}
             onChange={(event) => onReviewQueryChange(event.target.value)}
-            placeholder='Search family name or email'
+            placeholder='Search parent name or email'
             className='pl-9'
           />
         </div>
@@ -743,10 +786,10 @@ function AudienceReviewSheet({
         ) : !filteredRows.length ? (
           <div className='rounded-2xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground'>
             {reviewMode === 'removed'
-              ? 'No removed recipients.'
+              ? 'No removed parents.'
               : trimmedQuery
-                ? 'No families match that search.'
-                : 'No recipients to show yet.'}
+                ? 'No parents match that search.'
+                : 'No parents to show yet.'}
           </div>
         ) : (
           <div className='space-y-3'>
@@ -797,9 +840,9 @@ function ProgressReviewSheet({
   return (
     <div className='flex h-full min-h-0 flex-col'>
       <SheetHeader className='border-b border-border/50 px-6 py-5'>
-        <SheetTitle>Campaign progress</SheetTitle>
+        <SheetTitle>Delivery details</SheetTitle>
         <SheetDescription>
-          A simple delivery view for each family in this campaign.
+          A simple delivery view for each parent in this campaign.
         </SheetDescription>
       </SheetHeader>
 
@@ -807,10 +850,10 @@ function ProgressReviewSheet({
         <div className='border-b border-border/50 px-6 py-4'>
           <div className='flex flex-wrap gap-2'>
             <Badge variant='secondary'>
-              {dispatchState?.total_recipients ?? rows.length} total
+              {dispatchState?.total_recipients ?? rows.length} parents
             </Badge>
             <Badge variant='success'>{sentRows.length} sent</Badge>
-            {retryingRows.length ? <Badge variant='warning'>{retryingRows.length} retrying</Badge> : null}
+            {retryingRows.length ? <Badge variant='warning'>{retryingRows.length} delayed</Badge> : null}
             {failedRows.length ? <Badge variant='error'>{failedRows.length} failed</Badge> : null}
           </div>
         </div>
@@ -822,7 +865,7 @@ function ProgressReviewSheet({
           <Input
             value={reviewQuery}
             onChange={(event) => onReviewQueryChange(event.target.value)}
-            placeholder='Search family name or email'
+            placeholder='Search parent name or email'
             className='pl-9'
           />
         </div>
@@ -831,16 +874,16 @@ function ProgressReviewSheet({
       <div className='min-h-0 flex-1 overflow-y-auto px-6 py-5'>
         {!filteredRows.length ? (
           <div className='rounded-2xl border border-dashed border-border/60 p-5 text-sm text-muted-foreground'>
-            {trimmedQuery ? 'No recipients match that search.' : 'No delivery activity yet.'}
+            {trimmedQuery ? 'No parents match that search.' : 'No delivery updates yet.'}
           </div>
         ) : (
           <div className='overflow-hidden rounded-2xl border border-border/60 bg-card'>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Family</TableHead>
+                  <TableHead>Parent</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Delivery state</TableHead>
+                  <TableHead>Delivery status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -849,15 +892,17 @@ function ProgressReviewSheet({
                     <TableCell className='font-medium'>
                       {[row.first_name, row.last_name].filter(Boolean).join(' ') || row.recipient_email}
                     </TableCell>
-                    <TableCell>{row.recipient_email}</TableCell>
+                    <TableCell>
+                      {row.recipient_email}
+                    </TableCell>
                     <TableCell>
                       <div className='space-y-1'>
                         <Badge variant={deliveryStateVariant(row.recipient_status)}>
                           {deliveryStateLabel(row.recipient_status)}
                         </Badge>
-                        {row.last_error_message ? (
+                        {deliveryStateMessage(row) ? (
                           <div className='max-w-[22rem] text-xs text-muted-foreground'>
-                            {row.last_error_message}
+                            {deliveryStateMessage(row)}
                           </div>
                         ) : null}
                       </div>
@@ -963,7 +1008,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       } catch (nextError) {
         if (!cancelled) {
           setError(
-            nextError instanceof Error ? nextError.message : 'Unable to load campaign right now.',
+            nextError instanceof Error ? nextError.message : 'We couldn’t load this campaign right now.',
           );
         }
       } finally {
@@ -1045,8 +1090,8 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       if (campaign.status === 'failed' || campaign.status === 'canceled') {
         const parts = [
           `${activeDispatchState.sent_recipients} sent`,
-          activeDispatchState.failed_recipients ? `${activeDispatchState.failed_recipients} failed` : null,
-          activeDispatchState.retry_scheduled_recipients ? `${activeDispatchState.retry_scheduled_recipients} retrying` : null,
+          activeDispatchState.failed_recipients ? `${activeDispatchState.failed_recipients} not delivered` : null,
+          activeDispatchState.retry_scheduled_recipients ? `${activeDispatchState.retry_scheduled_recipients} delayed` : null,
         ].filter(Boolean);
         return parts.join(' · ');
       }
@@ -1059,7 +1104,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
     }
 
     if (campaign.status === 'failed' || campaign.status === 'canceled') {
-      return 'Delivery was interrupted';
+      return 'Delivery is still in progress';
     }
 
     return 'Campaign sending in progress';
@@ -1070,10 +1115,22 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
     }
 
     if (activeDispatchState) {
+      const delayedCount = activeDispatchState.retry_scheduled_recipients;
+      const failedCount = activeDispatchState.failed_recipients;
+      const canceledCount = activeDispatchState.canceled_recipients;
+      const failedRow = recipientActivity?.data.find((row) => row.recipient_status === 'failed');
       const summaryParts = [
-        activeDispatchState.failed_recipients ? `${activeDispatchState.failed_recipients} emails failed` : null,
-        activeDispatchState.retry_scheduled_recipients ? `${activeDispatchState.retry_scheduled_recipients} are retrying` : null,
-        activeDispatchState.canceled_recipients ? `${activeDispatchState.canceled_recipients} were canceled` : null,
+        delayedCount
+          ? `${delayedCount} delayed ${delayedCount === 1 ? 'email' : 'emails'}`
+          : null,
+        failedCount
+          ? failedCount === 1
+            ? `1 ${humanizeFailureReason(failedRow?.last_error_message)}`
+            : `${failedCount} emails could not be delivered`
+          : null,
+        canceledCount
+          ? `${canceledCount} ${canceledCount === 1 ? 'email was' : 'emails were'} stopped`
+          : null,
       ].filter(Boolean);
 
       if (summaryParts.length) {
@@ -1081,8 +1138,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       }
     }
 
-    const sampleError = recipientActivity?.data.find((row) => row.last_error_message)?.last_error_message;
-    return sampleError ?? 'Some deliveries were interrupted.';
+    return 'A few deliveries still need more time.';
   }, [activeDispatchState, campaign, recipientActivity?.data]);
 
   useEffect(() => {
@@ -1256,7 +1312,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       toast.success('Campaign changes saved.');
     } catch (nextError) {
       setSaveError(
-        nextError instanceof Error ? nextError.message : 'Unable to save campaign changes.',
+        nextError instanceof Error ? nextError.message : 'We couldn’t save your changes right now.',
       );
     } finally {
       setSaving(false);
@@ -1296,9 +1352,9 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       <div className='min-h-screen bg-background'>
         <div className='mx-auto flex max-w-3xl flex-col gap-4 px-6 py-12'>
           <Alert variant='error'>
-            <AlertTitle>Unable to load campaign</AlertTitle>
+            <AlertTitle>Couldn’t load campaign</AlertTitle>
             <AlertDescription>
-              {error ?? 'The Marketing V2 campaign page could not load right now.'}
+              {error ?? 'This campaign could not be loaded right now.'}
             </AlertDescription>
           </Alert>
           <Button asChild variant='outline'>
@@ -1321,10 +1377,9 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
               </Link>
             </Button>
             <div className='flex flex-wrap items-center gap-3'>
-              <Badge variant={statusBadgeVariant(campaign.status)}>
-                {statusLabel(campaign.status)}
+              <Badge variant={statusBadgeVariant(campaign.status, activeDispatchState)}>
+                {statusLabel(campaign.status, activeDispatchState)}
               </Badge>
-              {isMarketingV2DemoCampaign(campaign.id) ? <Badge variant='outline'>Demo</Badge> : null}
             </div>
             <h1 className='text-h3'>{campaign.name}</h1>
             <p className='text-body1 text-muted-foreground'>
@@ -1341,21 +1396,24 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
           <Alert variant='warning' className='mb-6'>
             <AlertTitle>Editing is locked for today</AlertTitle>
             <AlertDescription>
-              This campaign is already scheduled for today, sending now, or already sent, so V2 keeps it read-only.
+              This message is scheduled for today or already on its way, so editing is turned off.
             </AlertDescription>
           </Alert>
         ) : null}
 
         {issueSummary ? (
-          <Alert variant='error' className='mb-6'>
-            <AlertTitle>Why this campaign needs attention</AlertTitle>
+          <Alert
+            variant={campaign.status === 'failed' && (activeDispatchState?.retry_scheduled_recipients ?? 0) > 0 ? 'warning' : 'error'}
+            className='mb-6'
+          >
+            <AlertTitle>Delivery update</AlertTitle>
             <AlertDescription>{issueSummary}</AlertDescription>
           </Alert>
         ) : null}
 
         {saveError ? (
           <Alert variant='error' className='mb-6'>
-            <AlertTitle>Unable to save campaign</AlertTitle>
+            <AlertTitle>Couldn’t save changes</AlertTitle>
             <AlertDescription>{saveError}</AlertDescription>
           </Alert>
         ) : null}
@@ -1365,11 +1423,11 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
             <CardHeader>
               <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
                 <div>
-                  <CardTitle>Campaign details</CardTitle>
+                  <CardTitle>Message</CardTitle>
                   <CardDescription>
                     {messageEditMode
-                      ? 'Edit the email only when you need to make a change.'
-                      : 'Preview the email as a family would see it.'}
+                      ? 'Make changes only when you need to.'
+                      : 'Email preview'}
                   </CardDescription>
                 </div>
                 {!campaignLocked ? (
@@ -1415,7 +1473,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                       <div>
                         <Label>Body</Label>
                         <div className='text-sm text-muted-foreground'>
-                          Use a clean message with a clear next step.
+                          Keep it short, warm, and easy to scan.
                         </div>
                       </div>
                       <Button
@@ -1426,11 +1484,11 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                           const improved = improveDraft(subject, bodyHtml);
                           setSubject(improved.subject);
                           setBodyHtml(improved.bodyHtml);
-                          toast.success('Draft polished with the quick AI helper.');
+                          toast.success('Message polished.');
                         }}
                       >
                         <Sparkles className='size-4' />
-                        Improve with AI
+                        Polish with AI
                       </Button>
                     </div>
                     <div className={campaignLocked ? 'pointer-events-none opacity-70' : ''}>
@@ -1485,7 +1543,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
 
           <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
             <CardHeader>
-              <CardTitle>Audience</CardTitle>
+              <CardTitle>Recipients</CardTitle>
               <CardDescription>
                 {audienceCopy}
               </CardDescription>
@@ -1493,7 +1551,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
             <CardContent className='space-y-4'>
               <div className='rounded-2xl border border-border/60 bg-secondary/35 px-4 py-4'>
                 <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Matching families
+                  Matching parents
                 </div>
                 <div className='mt-2 text-3xl font-medium'>
                   {previewLoading ? '...' : effectiveMatchingCount}
@@ -1503,7 +1561,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
               {showProgressSheet && progressValue !== null ? (
                 <div className='rounded-2xl border border-border/60 bg-card px-4 py-4'>
                   <div className='flex items-center justify-between gap-3 text-sm'>
-                    <span className='font-medium text-foreground/90'>Campaign progress</span>
+                    <span className='font-medium text-foreground/90'>Delivery progress</span>
                     <span className='text-muted-foreground'>{Math.round(progressValue)}%</span>
                   </div>
                   <div className='mt-3'>
@@ -1550,7 +1608,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                     }}
                   >
                     <Plus className='size-4' />
-                    Add another filter
+                    Add another group
                   </Button>
                 ) : null}
 
@@ -1570,10 +1628,10 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                       disabled={!showProgressSheet && !effectiveMatchingCount}
                     >
                       {showProgressSheet
-                        ? 'See campaign progress'
+                        ? 'See delivery details'
                         : campaignLocked
-                          ? 'Review scheduled recipients'
-                          : 'Review and trim audience'}
+                          ? 'Review recipients'
+                          : 'Review recipients'}
                       <Badge variant='outline' className='ml-1'>
                         {showProgressSheet
                           ? recipientActivity?.data.length ?? 0
@@ -1591,7 +1649,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                       />
                     ) : (
                       <AudienceReviewSheet
-                        title={campaignLocked ? 'Scheduled recipients' : 'Review and trim audience'}
+                        title='Review recipients'
                         preview={preview}
                         previewLoading={previewLoading}
                         excludedContactIds={excludedContactIds}

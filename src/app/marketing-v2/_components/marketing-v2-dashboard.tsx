@@ -51,7 +51,6 @@ type CampaignSectionKey =
   | 'needs-attention'
   | 'sending'
   | 'scheduled'
-  | 'draft'
   | 'sent';
 
 type AudienceDefinition = {
@@ -86,24 +85,20 @@ const sectionConfig: Record<
   }
 > = {
   'needs-attention': {
-    title: 'Needs attention',
-    description: 'Only the campaigns that need a closer look.',
+    title: 'Delivery updates',
+    description: 'Messages that are delayed or did not reach every parent yet.',
   },
   sending: {
     title: 'Sending now',
-    description: 'The campaigns currently going out to families.',
+    description: 'Messages going out to parents right now.',
   },
   scheduled: {
     title: 'Scheduled',
-    description: 'Ready to go out at the planned time.',
-  },
-  draft: {
-    title: 'Drafts',
-    description: 'Still being prepared before they go out.',
+    description: 'Ready to go out at the time you picked.',
   },
   sent: {
     title: 'Sent',
-    description: 'Already delivered or completed.',
+    description: 'Messages that already went out.',
   },
 };
 
@@ -188,13 +183,13 @@ function buildAudienceCopy(
   if (v2EventRules.length) {
     const statuses = Array.from(new Set(v2EventRules.map((rule) => rule.status)));
     const events = v2EventRules.map((rule) => rule.event_label).filter((label): label is string => Boolean(label));
-    const statusLabel = statuses.length === 1 ? `${statuses[0]} families` : 'families';
+    const statusLabel = statuses.length === 1 ? `${statuses[0]} parents` : 'parents';
     const eventLabel = events.length === 1 ? events[0] : `${v2EventRules.length} past events`;
     return `To ${statusLabel} from ${eventLabel}`;
   }
 
   if (eventNames.length) {
-    const statusLabel = eventStatuses.length === 1 ? `${eventStatuses[0]} families` : 'families';
+    const statusLabel = eventStatuses.length === 1 ? `${eventStatuses[0]} parents` : 'parents';
     const eventLabel = eventNames.length === 1
       ? eventNames[0]
       : `${eventNames.length} past events`;
@@ -205,31 +200,31 @@ function buildAudienceCopy(
     const seasonLabel = seasonNames.length === 1
       ? seasonNames[0]
       : `${seasonNames.length} seasons`;
-    return `To families from ${seasonLabel}`;
+    return `To parents from ${seasonLabel}`;
   }
 
   if (filters.createdVia?.length === 1 && filters.createdVia[0] === 'import') {
-    return 'To imported contacts';
+    return 'To imported parents';
   }
 
   if (filters.registeredButNeverPaid) {
-    return 'To families who registered but never paid';
+    return 'To parents who registered but never paid';
   }
 
   if (filters.paidEver) {
-    return 'To paid families';
+    return 'To parents who have paid before';
   }
 
   if (filters.registeredWithinDays) {
-    return `To families who registered in the last ${filters.registeredWithinDays} days`;
+    return `To parents who registered in the last ${filters.registeredWithinDays} days`;
   }
 
   if (filters.registeredEver) {
-    return 'To families who have registered before';
+    return 'To parents who have registered before';
   }
 
   if (filters.hasLinkedAthlete) {
-    return 'To contacts linked to an athlete';
+    return 'To parents linked to a player';
   }
 
   const presetLabel = definition.presetId
@@ -240,7 +235,7 @@ function buildAudienceCopy(
     return `To ${presetLabel.toLowerCase()}`;
   }
 
-  return 'To all marketable contacts';
+  return 'To all parents who can receive messages';
 }
 
 function chooseDispatchState(
@@ -293,7 +288,7 @@ function getCampaignSection(
     return 'sent';
   }
 
-  return 'draft';
+  return 'scheduled';
 }
 
 function buildCampaignCardModel(
@@ -305,36 +300,35 @@ function buildCampaignCardModel(
   const section = getCampaignSection(campaign, dispatchState);
 
   if (section === 'needs-attention') {
-    const affectedRecipients = dispatchState
-      ? dispatchState.failed_recipients + dispatchState.retry_scheduled_recipients
-      : 0;
-    const noteParts = dispatchState
-      ? [
-        dispatchState.failed_recipients ? `${dispatchState.failed_recipients} failed` : null,
-        dispatchState.retry_scheduled_recipients ? `${dispatchState.retry_scheduled_recipients} retrying` : null,
-        dispatchState.canceled_recipients ? `${dispatchState.canceled_recipients} canceled` : null,
-      ].filter(Boolean)
-      : [];
+    const failedRecipients = dispatchState?.failed_recipients ?? 0;
+    const delayedRecipients = dispatchState?.retry_scheduled_recipients ?? 0;
+    const canceledRecipients = dispatchState?.canceled_recipients ?? 0;
+    const undeliveredRecipients = failedRecipients + canceledRecipients;
+    const delayed = delayedRecipients > 0;
 
     return {
       campaign,
       audienceCopy: buildAudienceCopy(campaign, metadata, presetLabelById),
-      stateCopy: campaign.status === 'canceled'
-        ? 'Stopped before it finished'
-        : 'Needs a closer look',
-      progressCopy: affectedRecipients > 0
-        ? `${affectedRecipients} emails need attention`
-        : 'Review this campaign',
-      noteCopy: campaign.status === 'canceled'
-        ? 'The campaign was canceled before it fully finished.'
-        : noteParts.length
-          ? noteParts.join(' · ')
-          : null,
+      stateCopy: delayed
+        ? 'Delivery is delayed'
+        : campaign.status === 'canceled'
+          ? 'Sending was stopped early'
+          : 'Some emails could not be delivered',
+      progressCopy: delayed
+        ? `${delayedRecipients} delayed ${delayedRecipients === 1 ? 'email' : 'emails'}`
+        : undeliveredRecipients > 0
+          ? `${undeliveredRecipients} ${undeliveredRecipients === 1 ? 'email could' : 'emails could'} not be delivered`
+          : 'Open for details',
+      noteCopy: delayed
+        ? 'We’ll keep trying automatically.'
+        : campaign.status === 'canceled'
+          ? 'Sending was stopped before it finished.'
+          : 'Open this campaign to review delivery details.',
       progressValue: dispatchState?.sent_percent ?? null,
       section,
       showProgress: Boolean(dispatchState?.sent_percent),
-      statusLabel: 'Needs attention',
-      statusVariant: 'error',
+      statusLabel: delayed ? 'Delayed' : campaign.status === 'canceled' ? 'Stopped' : 'Failed',
+      statusVariant: delayed ? 'warning' : 'error',
     };
   }
 
@@ -345,9 +339,9 @@ function buildCampaignCardModel(
       stateCopy: 'Sending now',
       progressCopy: dispatchState?.total_recipients
         ? `${dispatchState.sent_recipients} of ${dispatchState.total_recipients} sent`
-        : 'In progress',
+        : 'Sending now',
       noteCopy: dispatchState && dispatchState.retry_scheduled_recipients > 0
-        ? `${dispatchState.retry_scheduled_recipients} still retrying`
+        ? `${dispatchState.retry_scheduled_recipients} delayed`
         : null,
       progressValue: dispatchState?.sent_percent ?? 48,
       section,
@@ -362,7 +356,7 @@ function buildCampaignCardModel(
       campaign,
       audienceCopy: buildAudienceCopy(campaign, metadata, presetLabelById),
       stateCopy: `Going out ${formatDateTime(campaign.scheduled_at)}`,
-      progressCopy: 'Ready to send',
+      progressCopy: 'Scheduled',
       noteCopy: null,
       progressValue: null,
       section,
@@ -381,8 +375,8 @@ function buildCampaignCardModel(
       campaign,
       audienceCopy: buildAudienceCopy(campaign, metadata, presetLabelById),
       stateCopy: `Sent ${formatDateTime(campaign.sent_at)}`,
-      progressCopy: 'Completed',
-      noteCopy: failureCount > 0 ? `${failureCount} emails did not go through` : null,
+      progressCopy: 'Sent',
+      noteCopy: failureCount > 0 ? `${failureCount} parents did not receive it` : null,
       progressValue: 100,
       section,
       showProgress: true,
@@ -394,15 +388,13 @@ function buildCampaignCardModel(
   return {
     campaign,
     audienceCopy: buildAudienceCopy(campaign, metadata, presetLabelById),
-    stateCopy: 'Still in draft',
-    progressCopy: 'Not scheduled yet',
-    noteCopy: campaign.scheduled_at
-      ? `Planned for ${formatDateTime(campaign.scheduled_at)} once ready`
-      : null,
+    stateCopy: `Going out ${formatDateTime(campaign.scheduled_at)}`,
+    progressCopy: 'Scheduled',
+    noteCopy: null,
     progressValue: null,
     section,
     showProgress: false,
-    statusLabel: 'Draft',
+    statusLabel: 'Scheduled',
     statusVariant: 'secondary',
   };
 }
@@ -476,7 +468,6 @@ function CampaignSection({
                 : card.section === 'needs-attention'
                   ? 'bg-error-muted/18'
                   : '';
-              const isDemoCampaign = isMarketingV2DemoCampaign(card.campaign.id);
               const rowClassName = `block transition-colors hover:bg-muted/35 ${rowToneClassName}`;
               const rowContent = (
                 <div
@@ -488,7 +479,6 @@ function CampaignSection({
                     <div className='flex flex-wrap items-center gap-3'>
                       <h3 className='truncate text-lg font-medium'>{card.campaign.name}</h3>
                       <Badge variant={card.statusVariant}>{card.statusLabel}</Badge>
-                      {isDemoCampaign ? <Badge variant='outline'>Demo</Badge> : null}
                     </div>
                     <p className='text-sm text-muted-foreground'>{card.audienceCopy}</p>
                   </div>
@@ -498,9 +488,7 @@ function CampaignSection({
                     {card.noteCopy ? (
                       <div className='text-sm text-muted-foreground'>{card.noteCopy}</div>
                     ) : (
-                      <div className='text-sm text-muted-foreground'>
-                        {isDemoCampaign ? 'Saved in this browser' : 'Open campaign'}
-                      </div>
+                      <div className='text-sm text-muted-foreground'>Open campaign</div>
                     )}
                   </div>
 
@@ -595,7 +583,7 @@ export function MarketingV2Dashboard() {
           setError(
             nextError instanceof Error
               ? nextError.message
-              : 'Unable to load campaigns right now.',
+              : 'We couldn’t load campaigns right now.',
           );
         }
       } finally {
@@ -655,7 +643,7 @@ export function MarketingV2Dashboard() {
       ...bootstrap.campaigns.data.filter(
         (campaign) => !demoCampaigns.some((demoCampaign) => demoCampaign.id === campaign.id),
       ),
-    ];
+    ].filter((campaign) => campaign.status !== 'draft');
     const mergedDispatchStates = [
       ...demoDispatchStates,
       ...dispatchStates.data.filter(
@@ -692,7 +680,6 @@ export function MarketingV2Dashboard() {
       'needs-attention': [],
       sending: [],
       scheduled: [],
-      draft: [],
       sent: [],
     };
 
@@ -723,9 +710,9 @@ export function MarketingV2Dashboard() {
       <div className='min-h-screen bg-background'>
         <div className='mx-auto flex max-w-3xl flex-col gap-4 px-6 py-12'>
           <Alert variant='error'>
-            <AlertTitle>Unable to load campaigns</AlertTitle>
+            <AlertTitle>Couldn’t load campaigns</AlertTitle>
             <AlertDescription>
-              {error ?? 'The Marketing V2 campaigns page could not load right now.'}
+              {error ?? 'Campaigns could not be loaded right now.'}
             </AlertDescription>
           </Alert>
           <div className='flex gap-3'>
@@ -745,7 +732,6 @@ export function MarketingV2Dashboard() {
     'needs-attention',
     'sending',
     'scheduled',
-    'draft',
     'sent',
   ];
 
@@ -754,9 +740,10 @@ export function MarketingV2Dashboard() {
   );
   const visiblePrimarySections = visibleSections.filter((section) => section !== 'sent');
   const hasSentSection = cardsBySection.sent.length > 0;
-  const totalCampaigns = demoCampaigns.length + bootstrap.campaigns.data.filter(
-    (campaign) => !isMarketingV2DemoCampaign(campaign.id),
-  ).length;
+  const totalCampaigns = demoCampaigns.filter((campaign) => campaign.status !== 'draft').length
+    + bootstrap.campaigns.data.filter(
+      (campaign) => !isMarketingV2DemoCampaign(campaign.id) && campaign.status !== 'draft',
+    ).length;
   const visibleCampaignCount = visibleSections.reduce(
     (count, section) => count + cardsBySection[section].length,
     0,
@@ -767,16 +754,16 @@ export function MarketingV2Dashboard() {
       <div className='mx-auto max-w-6xl px-6 py-10'>
         <div className='mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between'>
           <div className='max-w-2xl space-y-3'>
-            <Badge variant='secondary'>Marketing V2</Badge>
+            <Badge variant='secondary'>Messages</Badge>
             <h1 className='text-h3'>Campaigns</h1>
             <p className='text-body1 text-muted-foreground'>
-              See what is sending, what is scheduled next, and what has already gone out.
+              See what is going out, what is scheduled next, and what already reached parents.
             </p>
           </div>
           <Button asChild size='lg'>
             <Link href='/marketing-v2/create'>
               <MailPlus className='size-4' />
-              New campaign
+              New message
             </Link>
           </Button>
         </div>
@@ -827,14 +814,14 @@ export function MarketingV2Dashboard() {
             <CardHeader>
               <CardTitle>Start your first campaign</CardTitle>
               <CardDescription>
-                Build an audience, write the message, and send it from one calm place.
+                Choose the right parents, write the message, and pick when it goes out.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild>
                 <Link href='/marketing-v2/create'>
                   <MailPlus className='size-4' />
-                  Create a campaign
+                  Create campaign
                 </Link>
               </Button>
             </CardContent>
@@ -842,9 +829,9 @@ export function MarketingV2Dashboard() {
         ) : !visibleCampaignCount ? (
           <Card rounded='lg' className='border-dashed'>
             <CardHeader>
-              <CardTitle>No campaigns match that search</CardTitle>
+              <CardTitle>No campaigns match those filters</CardTitle>
               <CardDescription>
-                Try a different campaign name or activity date, or clear the filters to see everything again.
+                Try a different campaign name or time range, or clear the filters to see everything again.
               </CardDescription>
             </CardHeader>
             <CardContent>

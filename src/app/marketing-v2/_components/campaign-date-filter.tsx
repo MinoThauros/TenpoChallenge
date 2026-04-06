@@ -22,13 +22,13 @@ export function CampaignDateFilter({ value, onChange }: CampaignDateFilterProps)
       <CalendarDays className='size-4 text-muted-foreground' />
       <Select value={value} onValueChange={(nextValue) => onChange(nextValue as CampaignDateFilterValue)}>
         <SelectTrigger className='w-[170px] bg-card'>
-          <SelectValue placeholder='Activity date' />
+          <SelectValue placeholder='When' />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value='all'>Any activity date</SelectItem>
-          <SelectItem value='last-7-days'>Activity in last 7 days</SelectItem>
-          <SelectItem value='last-30-days'>Activity in last 30 days</SelectItem>
-          <SelectItem value='this-year'>Activity this year</SelectItem>
+          <SelectItem value='all'>Any time</SelectItem>
+          <SelectItem value='last-7-days'>Last 7 days</SelectItem>
+          <SelectItem value='last-30-days'>Last 30 days</SelectItem>
+          <SelectItem value='this-year'>This year</SelectItem>
         </SelectContent>
       </Select>
     </div>

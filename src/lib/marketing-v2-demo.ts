@@ -9,7 +9,7 @@ const MARKETING_V2_DEMO_CAMPAIGNS_KEY = 'marketing-v2-demo-campaigns';
 const MARKETING_V2_DEMO_DISPATCHES_KEY = 'marketing-v2-demo-dispatches';
 const MARKETING_V2_DEMO_RECIPIENT_ACTIVITY_KEY = 'marketing-v2-demo-recipient-activity';
 const MARKETING_V2_DEMO_SEED_VERSION_KEY = 'marketing-v2-demo-seed-version';
-const MARKETING_V2_DEMO_SEED_VERSION = '2026-04-05-v1';
+const MARKETING_V2_DEMO_SEED_VERSION = '2026-04-06-v1';
 
 function hasWindow() {
   return typeof window !== 'undefined';
@@ -239,7 +239,7 @@ function buildRecipientActivity(params: {
 
 function buildSeedBody(title: string, lines: string[]) {
   return [
-    '<p>Hi families,</p>',
+    '<p>Hi parents,</p>',
     `<p>${title}</p>`,
     '<ul>',
     ...lines.map((line) => `<li>${line}</li>`),
@@ -278,7 +278,7 @@ function buildSeedDataset(metadata: AudienceMetadata) {
       bodyHtml: buildSeedBody(
         'We opened a few spots for next week.',
         [
-          'Reply if you want us to hold one for your family.',
+          'Reply if you want us to hold one for your child.',
           'Registration will stay open until tomorrow at noon.',
           'We can help if you have any questions.',
         ],
@@ -294,11 +294,11 @@ function buildSeedDataset(metadata: AudienceMetadata) {
       createdAt: isoShift(now, -2, -4, 0),
       updatedAt: isoShift(now, -1, -5, 0),
       bodyHtml: buildSeedBody(
-        'Here is everything families need before tonight.',
+        'Here is everything parents need before tonight.',
         [
           'Please arrive 10 minutes early for check-in.',
           'Bring indoor shoes and a water bottle.',
-          'Reply if your family will be late.',
+          'Reply if you expect to be late.',
         ],
       ),
     }),
@@ -368,24 +368,6 @@ function buildSeedDataset(metadata: AudienceMetadata) {
           'You can reply if you want us to help complete payment.',
           'We will keep spots open through tomorrow afternoon.',
           'Please ignore this note if you already finished checkout.',
-        ],
-      ),
-    }),
-    buildSeedCampaign({
-      id: 'marketing-v2-demo-seeded-draft',
-      name: 'Early fall interest check',
-      subject: 'Would your family like early access?',
-      status: 'draft',
-      scheduledAt: null,
-      audienceDefinition: buildAudienceDefinition(springCamp.id, springCamp.label, 'paid'),
-      createdAt: isoShift(now, -1, -8, 0),
-      updatedAt: isoShift(now, -1, -1, 30),
-      bodyHtml: buildSeedBody(
-        'We are planning the next season and wanted to ask first.',
-        [
-          'Reply if your family wants early access to registration.',
-          'We will use responses to shape the next schedule.',
-          'No action needed if you are not interested right now.',
         ],
       ),
     }),

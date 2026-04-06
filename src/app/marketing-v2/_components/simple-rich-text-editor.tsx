@@ -23,7 +23,7 @@ export function toPlainTextFromHtml(value: string) {
 export function SimpleRichTextEditor({
   value,
   onChange,
-  placeholder = 'Write your message here…',
+  placeholder = 'Write the message parents will receive…',
 }: SimpleRichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const isEmpty = useMemo(() => toPlainTextFromHtml(value).length === 0, [value]);

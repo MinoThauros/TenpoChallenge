@@ -13,7 +13,7 @@ export function CampaignSearch({ value, onChange }: CampaignSearchProps) {
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onClear={() => onChange('')}
-      placeholder='Search campaigns by name'
+      placeholder='Search by campaign name'
       className='max-w-md'
     />
   );

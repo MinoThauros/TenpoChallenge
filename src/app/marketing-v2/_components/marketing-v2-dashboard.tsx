@@ -81,24 +81,19 @@ const sectionConfig: Record<
   CampaignSectionKey,
   {
     title: string;
-    description: string;
   }
 > = {
   'needs-attention': {
     title: 'Delivery updates',
-    description: 'Messages that are delayed or did not reach every parent yet.',
   },
   sending: {
     title: 'Sending now',
-    description: 'Messages going out to parents right now.',
   },
   scheduled: {
     title: 'Scheduled',
-    description: 'Ready to go out at the time you picked.',
   },
   sent: {
     title: 'Sent',
-    description: 'Messages that already went out.',
   },
 };
 
@@ -320,7 +315,7 @@ function buildCampaignCardModel(
           ? `${undeliveredRecipients} ${undeliveredRecipients === 1 ? 'email could' : 'emails could'} not be delivered`
           : 'Open for details',
       noteCopy: delayed
-        ? 'We’ll keep trying automatically.'
+        ? ''
         : campaign.status === 'canceled'
           ? 'Sending was stopped before it finished.'
           : 'Open this campaign to review delivery details.',
@@ -422,12 +417,10 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
 
 function CampaignSection({
   title,
-  description,
   campaigns,
   hideHeader = false,
 }: {
   title: string;
-  description: string;
   campaigns: CampaignCardModel[];
   hideHeader?: boolean;
 }) {
@@ -441,10 +434,7 @@ function CampaignSection({
     <section className='space-y-3'>
       {!hideHeader ? (
         <div className='flex items-end justify-between gap-3'>
-          <div>
-            <h2 className='text-h5'>{title}</h2>
-            <p className='text-sm text-muted-foreground'>{description}</p>
-          </div>
+          <h2 className='text-h5'>{title}</h2>
           <div className='text-sm text-muted-foreground'>
             {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
           </div>
@@ -487,9 +477,7 @@ function CampaignSection({
                     <div className='text-sm font-medium text-foreground/90'>{card.stateCopy}</div>
                     {card.noteCopy ? (
                       <div className='text-sm text-muted-foreground'>{card.noteCopy}</div>
-                    ) : (
-                      <div className='text-sm text-muted-foreground'>Open campaign</div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className='space-y-2'>
@@ -769,43 +757,12 @@ export function MarketingV2Dashboard() {
         </div>
 
         {totalCampaigns ? (
-          <Card rounded='xl' className='mb-6 border-border/60 bg-gradient-to-r from-card via-card to-secondary/25 shadow-sm shadow-black/5'>
-            <CardContent className='grid gap-4 px-6 py-5 md:grid-cols-3'>
-              <div>
-                <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Sending now
-                </div>
-                <div className='mt-2 text-3xl font-medium'>{cardsBySection.sending.length}</div>
-              </div>
-              <div>
-                <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Scheduled next
-                </div>
-                <div className='mt-2 text-3xl font-medium'>{cardsBySection.scheduled.length}</div>
-              </div>
-              <div>
-                <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Sent already
-                </div>
-                <div className='mt-2 text-3xl font-medium'>{cardsBySection.sent.length}</div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {totalCampaigns ? (
           <div className='mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
             <CampaignSearch value={searchQuery} onChange={setSearchQuery} />
             <div className='flex flex-wrap items-center gap-3'>
               <CampaignDateFilter value={dateFilter} onChange={setDateFilter} />
               <CampaignSort value={sortOrder} onChange={setSortOrder} />
             </div>
-          </div>
-        ) : null}
-
-        {totalCampaigns ? (
-          <div className='mb-3 text-sm text-muted-foreground'>
-            Showing {visibleCampaignCount} of {totalCampaigns} campaigns
           </div>
         ) : null}
 
@@ -849,7 +806,6 @@ export function MarketingV2Dashboard() {
               <CampaignSection
                 key={section}
                 title={sectionConfig[section].title}
-                description={sectionConfig[section].description}
                 campaigns={cardsBySection[section]}
               />
             ))}
@@ -860,12 +816,7 @@ export function MarketingV2Dashboard() {
                   <Accordion type='single' collapsible>
                     <AccordionItem value='sent-campaigns' className='border-b-0'>
                       <AccordionTrigger className='py-5 hover:no-underline'>
-                        <div className='flex flex-col items-start gap-1 text-left'>
-                          <div className='text-h5'>{sectionConfig.sent.title}</div>
-                          <div className='text-sm text-muted-foreground'>
-                            {sectionConfig.sent.description}
-                          </div>
-                        </div>
+                        <div className='text-h5'>{sectionConfig.sent.title}</div>
                         <div className='pr-2 text-sm text-muted-foreground'>
                           {cardsBySection.sent.length} {cardsBySection.sent.length === 1 ? 'campaign' : 'campaigns'}
                         </div>
@@ -873,7 +824,6 @@ export function MarketingV2Dashboard() {
                       <AccordionContent className='pb-6'>
                         <CampaignSection
                           title={sectionConfig.sent.title}
-                          description={sectionConfig.sent.description}
                           campaigns={cardsBySection.sent}
                           hideHeader
                         />

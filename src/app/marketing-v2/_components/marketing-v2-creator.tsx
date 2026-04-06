@@ -483,7 +483,6 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
   ]);
   const [preview, setPreview] = useState<AudiencePreviewResponse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
@@ -552,8 +551,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
 
   const canContinue = activeRules.length > 0 && (preview?.summary.matchingContacts ?? 0) > 0;
   const canSubmit = Boolean(
-    name.trim()
-    && subject.trim()
+    subject.trim()
     && toPlainTextFromHtml(bodyHtml).trim()
     && scheduleDate
     && scheduleTime,
@@ -655,7 +653,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
 
   async function handleSubmit() {
     if (!canSubmit) {
-      setSubmitError('Add a campaign name, subject, message, send date, and send time before continuing.');
+      setSubmitError('Add a subject, message, send date, and send time before continuing.');
       return;
     }
 
@@ -672,7 +670,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
 
       saveMarketingV2DemoCampaign(
         createMarketingV2DemoCampaign({
-          name,
+          name: subject.trim(),
           subject,
           previewText: '',
           fromName: 'Tenpo Academy',
@@ -715,37 +713,12 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           </Button>
         </div>
 
-        <div className='mb-8 grid gap-3 md:grid-cols-2'>
-          <Card rounded='xl' className={step === 1 ? 'border-primary/35 bg-secondary/35' : ''}>
-            <CardContent className='px-6 py-5'>
-              <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                Step 1
-              </div>
-              <div className='mt-2 text-xl font-medium'>Configure Audience</div>
-              <div className='mt-1 text-sm text-muted-foreground'>
-                Build your audience based on activy on past events
-              </div>
-            </CardContent>
-          </Card>
-          <Card rounded='xl' className={step === 2 ? 'border-primary/35 bg-secondary/35' : ''}>
-            <CardContent className='px-6 py-5'>
-              <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                Step 2
-              </div>
-              <div className='mt-2 text-xl font-medium'>Write and schedule</div>
-              <div className='mt-1 text-sm text-muted-foreground'>
-                Write the message and choose when it goes out.
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {step === 1 ? (
           <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
             <CardHeader>
               <CardTitle>Who should get this message?</CardTitle>
               <CardDescription>
-                Add one or more filters. Each one is an event and a parent status.
+                Add one or more event filters.
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
@@ -778,7 +751,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                   }}
                 >
                   <Plus className='size-4' />
-                  Add another group
+                  Add filter
                 </Button>
 
                 <Sheet
@@ -818,48 +791,26 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                   </SheetContent>
                 </Sheet>
               </div>
-
-              <div className='rounded-2xl border border-border/60 bg-secondary/35 px-4 py-4'>
-                <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Matching parents
-                </div>
-                <div className='mt-2 text-3xl font-medium'>
-                  {previewLoading ? '...' : preview?.summary.matchingContacts ?? 0}
-                </div>
-              </div>
-
             </CardContent>
           </Card>
         ) : (
           <div className='space-y-6'>
             <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
               <CardHeader>
-                <CardTitle>Message details</CardTitle>
+                <CardTitle>Message</CardTitle>
                 <CardDescription>
                   Keep it simple: a clear subject and a warm, easy-to-read message.
                 </CardDescription>
               </CardHeader>
               <CardContent className='space-y-5'>
-                <div className='grid gap-4 md:grid-cols-2'>
-                  <div className='space-y-2'>
-                    <Label htmlFor='campaign-name'>Campaign name</Label>
-                    <Input
-                      id='campaign-name'
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      placeholder='Spring waitlist follow-up'
-                    />
-                  </div>
-
-                  <div className='space-y-2'>
-                    <Label htmlFor='campaign-subject'>Subject</Label>
-                    <Input
-                      id='campaign-subject'
-                      value={subject}
-                      onChange={(event) => setSubject(event.target.value)}
-                      placeholder='A few spots just opened up'
-                    />
-                  </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='campaign-subject'>Subject</Label>
+                  <Input
+                    id='campaign-subject'
+                    value={subject}
+                    onChange={(event) => setSubject(event.target.value)}
+                    placeholder='A few spots just opened up'
+                  />
                 </div>
 
                 <div className='space-y-3'>
@@ -937,7 +888,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           ) : (
             <div className='flex flex-wrap gap-3'>
               <Button type='button' variant='outline' onClick={() => setStep(1)}>
-                Edit recipients
+                Back to recipients
               </Button>
               <Button type='button' onClick={handleSubmit} disabled={submitting || !canSubmit}>
                 <CalendarClock className='size-4' />

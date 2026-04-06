@@ -925,7 +925,6 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
   const [recipientActivity, setRecipientActivity] = useState<Page<MarketingDispatchRecipientActivity> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [bodyHtml, setBodyHtml] = useState('');
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
@@ -994,7 +993,6 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
           setDispatchStates(nextDispatchStates);
           setRecipientActivity(nextRecipientActivity);
           setCampaign(nextCampaign);
-          setName(nextCampaign.name);
           setSubject(nextCampaign.subject);
           setBodyHtml(nextCampaign.body_html);
           const scheduleEditorState = toScheduleEditorState(nextCampaign.scheduled_at);
@@ -1188,13 +1186,38 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
   const canSave = Boolean(
     campaign
     && !campaignLocked
-    && name.trim()
     && subject.trim()
     && toPlainTextFromHtml(bodyHtml).trim()
     && scheduleDate
     && scheduleTime
     && activeRules.length
     && effectiveMatchingCount > 0,
+  );
+  const originalAudienceDefinition = useMemo(
+    () => {
+      if (!campaign || !bootstrap) {
+        return null;
+      }
+
+      return buildMarketingV2AudienceDefinition(
+        buildRulesFromCampaign(campaign, bootstrap.metadata),
+        readAudienceDefinition(campaign).excluded_contact_ids ?? [],
+      );
+    },
+    [bootstrap, campaign],
+  );
+  const currentAudienceDefinition = useMemo(
+    () => buildMarketingV2AudienceDefinition(activeRules, excludedContactIds),
+    [activeRules, excludedContactIds],
+  );
+  const hasChanges = Boolean(
+    campaign
+    && (
+      subject !== campaign.subject
+      || bodyHtml !== campaign.body_html
+      || buildScheduledAt() !== campaign.scheduled_at
+      || JSON.stringify(currentAudienceDefinition) !== JSON.stringify(originalAudienceDefinition)
+    ),
   );
 
   function buildScheduledAt() {
@@ -1280,7 +1303,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
       if (isMarketingV2DemoCampaign(campaign.id)) {
         const updated = saveMarketingV2DemoCampaign({
           ...campaign,
-          name,
+          name: subject.trim(),
           subject,
           body_html: bodyHtml,
           body_text: toPlainTextFromHtml(bodyHtml),
@@ -1297,7 +1320,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name,
+            name: subject.trim(),
             subject,
             body_html: bodyHtml,
             body_text: toPlainTextFromHtml(bodyHtml),
@@ -1387,28 +1410,22 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
             </p>
           </div>
 
-          <Button type='button' onClick={handleSave} disabled={!canSave || saving}>
-            {saving ? 'Saving…' : 'Save changes'}
-          </Button>
+          {!campaignLocked && hasChanges ? (
+            <Button type='button' onClick={handleSave} disabled={!canSave || saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </Button>
+          ) : null}
         </div>
 
-        {campaignLocked ? (
-          <Alert variant='warning' className='mb-6'>
-            <AlertTitle>Editing is locked for today</AlertTitle>
-            <AlertDescription>
-              This message is scheduled for today or already on its way, so editing is turned off.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {issueSummary ? (
-          <Alert
-            variant={campaign.status === 'failed' && (activeDispatchState?.retry_scheduled_recipients ?? 0) > 0 ? 'warning' : 'error'}
-            className='mb-6'
-          >
-            <AlertTitle>Delivery update</AlertTitle>
-            <AlertDescription>{issueSummary}</AlertDescription>
-          </Alert>
+        {campaignLocked || issueSummary ? (
+          <div className='mb-6 flex flex-wrap gap-3 rounded-2xl border border-border/60 bg-secondary/20 px-4 py-3 text-sm text-muted-foreground'>
+            {campaignLocked ? (
+              <div>Editing is off for today.</div>
+            ) : null}
+            {issueSummary ? (
+              <div>{issueSummary}</div>
+            ) : null}
+          </div>
         ) : null}
 
         {saveError ? (
@@ -1422,14 +1439,7 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
           <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
             <CardHeader>
               <div className='flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
-                <div>
-                  <CardTitle>Message</CardTitle>
-                  <CardDescription>
-                    {messageEditMode
-                      ? 'Make changes only when you need to.'
-                      : 'Email preview'}
-                  </CardDescription>
-                </div>
+                <CardTitle>Message</CardTitle>
                 {!campaignLocked ? (
                   <Button
                     type='button'
@@ -1444,28 +1454,15 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
             <CardContent className='space-y-5'>
               {messageEditMode ? (
                 <>
-                  <div className='grid gap-4 md:grid-cols-2'>
-                    <div className='space-y-2'>
-                      <Label htmlFor='campaign-name'>Campaign name</Label>
-                      <Input
-                        id='campaign-name'
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        placeholder='Spring waitlist follow-up'
-                        disabled={campaignLocked}
-                      />
-                    </div>
-
-                    <div className='space-y-2'>
-                      <Label htmlFor='campaign-subject'>Subject</Label>
-                      <Input
-                        id='campaign-subject'
-                        value={subject}
-                        onChange={(event) => setSubject(event.target.value)}
-                        placeholder='A few spots just opened up'
-                        disabled={campaignLocked}
-                      />
-                    </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='campaign-subject'>Subject</Label>
+                    <Input
+                      id='campaign-subject'
+                      value={subject}
+                      onChange={(event) => setSubject(event.target.value)}
+                      placeholder='A few spots just opened up'
+                      disabled={campaignLocked}
+                    />
                   </div>
 
                   <div className='space-y-3'>
@@ -1549,15 +1546,6 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-4'>
-              <div className='rounded-2xl border border-border/60 bg-secondary/35 px-4 py-4'>
-                <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
-                  Matching parents
-                </div>
-                <div className='mt-2 text-3xl font-medium'>
-                  {previewLoading ? '...' : effectiveMatchingCount}
-                </div>
-              </div>
-
               {showProgressSheet && progressValue !== null ? (
                 <div className='rounded-2xl border border-border/60 bg-card px-4 py-4'>
                   <div className='flex items-center justify-between gap-3 text-sm'>
@@ -1576,42 +1564,45 @@ export function MarketingV2CampaignPage({ campaignId }: { campaignId: string }) 
                 </div>
               ) : null}
 
-              {rules.map((rule) => (
-                <EventRuleRow
-                  key={rule.id}
-                  rule={rule}
-                  metadata={bootstrap.metadata}
-                  removable={rules.length > 1}
-                  disabled={campaignLocked}
-                  onRemove={() => {
-                    setRules((current) =>
-                      current.filter((currentRule) => currentRule.id !== rule.id)
-                    );
-                  }}
-                  onChange={(nextRule) =>
-                    setRules((current) =>
-                      current.map((currentRule) =>
-                        currentRule.id === nextRule.id ? nextRule : currentRule
-                      )
-                    )}
-                />
-              ))}
+              {!showProgressSheet ? (
+                <>
+                  {rules.map((rule) => (
+                    <EventRuleRow
+                      key={rule.id}
+                      rule={rule}
+                      metadata={bootstrap.metadata}
+                      removable={rules.length > 1}
+                      disabled={campaignLocked}
+                      onRemove={() => {
+                        setRules((current) =>
+                          current.filter((currentRule) => currentRule.id !== rule.id)
+                        );
+                      }}
+                      onChange={(nextRule) =>
+                        setRules((current) =>
+                          current.map((currentRule) =>
+                            currentRule.id === nextRule.id ? nextRule : currentRule
+                          )
+                        )}
+                    />
+                  ))}
+
+                  {!campaignLocked ? (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => {
+                        setRules((current) => [...current, createEmptyMarketingV2Rule()]);
+                      }}
+                    >
+                      <Plus className='size-4' />
+                      Add filter
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
 
               <div className='flex flex-wrap items-center gap-3'>
-                {!showProgressSheet ? (
-                  <Button
-                    type='button'
-                    variant='outline'
-                    disabled={campaignLocked}
-                    onClick={() => {
-                      setRules((current) => [...current, createEmptyMarketingV2Rule()]);
-                    }}
-                  >
-                    <Plus className='size-4' />
-                    Add another group
-                  </Button>
-                ) : null}
-
                 <Sheet
                   open={reviewOpen}
                   onOpenChange={(open) => {

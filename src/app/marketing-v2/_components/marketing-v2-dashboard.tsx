@@ -19,6 +19,12 @@ import {
   readMarketingV2DemoDispatchStates,
 } from '@/lib/marketing-v2-demo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +36,7 @@ import {
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CampaignDateFilter, type CampaignDateFilterValue } from './campaign-date-filter';
 import { CampaignSearch } from './campaign-search';
 import { CampaignSort, type CampaignSortOrder } from './campaign-sort';
 
@@ -122,6 +129,38 @@ function formatDateTime(value?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function getCampaignRelevantDate(campaign: MarketingCampaign) {
+  return campaign.sent_at ?? campaign.scheduled_at ?? campaign.created_at;
+}
+
+function matchesDateFilter(campaign: MarketingCampaign, dateFilter: CampaignDateFilterValue) {
+  if (dateFilter === 'all') {
+    return true;
+  }
+
+  const relevantDate = getCampaignRelevantDate(campaign);
+  if (!relevantDate) {
+    return false;
+  }
+
+  const campaignDate = new Date(relevantDate);
+  const now = new Date();
+
+  if (dateFilter === 'last-7-days') {
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 7);
+    return campaignDate >= cutoff;
+  }
+
+  if (dateFilter === 'last-30-days') {
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 30);
+    return campaignDate >= cutoff;
+  }
+
+  return campaignDate.getFullYear() === now.getFullYear();
 }
 
 function buildAudienceCopy(
@@ -334,9 +373,6 @@ function buildCampaignCardModel(
   }
 
   if (section === 'sent') {
-    const sentSummary = dispatchState?.total_recipients
-      ? `Sent to ${dispatchState.sent_recipients} of ${dispatchState.total_recipients} families`
-      : `Sent ${formatDateTime(campaign.sent_at)}`;
     const failureCount = dispatchState
       ? dispatchState.failed_recipients + dispatchState.retry_scheduled_recipients
       : 0;
@@ -345,7 +381,7 @@ function buildCampaignCardModel(
       campaign,
       audienceCopy: buildAudienceCopy(campaign, metadata, presetLabelById),
       stateCopy: `Sent ${formatDateTime(campaign.sent_at)}`,
-      progressCopy: sentSummary,
+      progressCopy: 'Completed',
       noteCopy: failureCount > 0 ? `${failureCount} emails did not go through` : null,
       progressValue: 100,
       section,
@@ -396,10 +432,12 @@ function CampaignSection({
   title,
   description,
   campaigns,
+  hideHeader = false,
 }: {
   title: string;
   description: string;
   campaigns: CampaignCardModel[];
+  hideHeader?: boolean;
 }) {
   const headerCells = [
     'Campaign',
@@ -409,15 +447,17 @@ function CampaignSection({
 
   return (
     <section className='space-y-3'>
-      <div className='flex items-end justify-between gap-3'>
-        <div>
-          <h2 className='text-h5'>{title}</h2>
-          <p className='text-sm text-muted-foreground'>{description}</p>
+      {!hideHeader ? (
+        <div className='flex items-end justify-between gap-3'>
+          <div>
+            <h2 className='text-h5'>{title}</h2>
+            <p className='text-sm text-muted-foreground'>{description}</p>
+          </div>
+          <div className='text-sm text-muted-foreground'>
+            {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
+          </div>
         </div>
-        <div className='text-sm text-muted-foreground'>
-          {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
-        </div>
-      </div>
+      ) : null}
 
       <Card rounded='xl' className='overflow-hidden border-border/60 bg-card/95 shadow-sm shadow-black/5'>
         <CardContent className='px-0'>
@@ -506,6 +546,16 @@ function CampaignSection({
   );
 }
 
+function resetCampaignControls(
+  setSearchQuery: (value: string) => void,
+  setDateFilter: (value: CampaignDateFilterValue) => void,
+  setSortOrder: (value: CampaignSortOrder) => void,
+) {
+  setSearchQuery('');
+  setDateFilter('all');
+  setSortOrder('latest');
+}
+
 export function MarketingV2Dashboard() {
   const [bootstrap, setBootstrap] = useState<MarketingV2BootstrapResponse | null>(null);
   const [dispatchStates, setDispatchStates] = useState<Page<MarketingCampaignDispatchState> | null>(
@@ -517,6 +567,7 @@ export function MarketingV2Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<CampaignSortOrder>('latest');
+  const [dateFilter, setDateFilter] = useState<CampaignDateFilterValue>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -617,7 +668,10 @@ export function MarketingV2Dashboard() {
         campaign.name.toLowerCase().includes(normalizedQuery)
       )
       : mergedCampaigns;
-    const orderedCampaigns = [...visibleCampaigns].sort((left, right) => {
+    const dateFilteredCampaigns = visibleCampaigns.filter((campaign) =>
+      matchesDateFilter(campaign, dateFilter)
+    );
+    const orderedCampaigns = [...dateFilteredCampaigns].sort((left, right) => {
       const leftCreatedAt = new Date(left.created_at).getTime();
       const rightCreatedAt = new Date(right.created_at).getTime();
 
@@ -647,7 +701,7 @@ export function MarketingV2Dashboard() {
     }
 
     return sections;
-  }, [bootstrap, demoCampaigns, demoDispatchStates, dispatchStates, searchQuery, sortOrder]);
+  }, [bootstrap, dateFilter, demoCampaigns, demoDispatchStates, dispatchStates, searchQuery, sortOrder]);
 
   if (loading) {
     return (
@@ -698,6 +752,8 @@ export function MarketingV2Dashboard() {
   const visibleSections = orderedSections.filter(
     (section) => cardsBySection[section].length > 0,
   );
+  const visiblePrimarySections = visibleSections.filter((section) => section !== 'sent');
+  const hasSentSection = cardsBySection.sent.length > 0;
   const totalCampaigns = demoCampaigns.length + bootstrap.campaigns.data.filter(
     (campaign) => !isMarketingV2DemoCampaign(campaign.id),
   ).length;
@@ -726,14 +782,7 @@ export function MarketingV2Dashboard() {
         </div>
 
         {totalCampaigns ? (
-          <div className='mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <CampaignSearch value={searchQuery} onChange={setSearchQuery} />
-            <CampaignSort value={sortOrder} onChange={setSortOrder} />
-          </div>
-        ) : null}
-
-        {totalCampaigns ? (
-          <Card rounded='xl' className='mb-8 border-border/60 bg-gradient-to-r from-card via-card to-secondary/25 shadow-sm shadow-black/5'>
+          <Card rounded='xl' className='mb-6 border-border/60 bg-gradient-to-r from-card via-card to-secondary/25 shadow-sm shadow-black/5'>
             <CardContent className='grid gap-4 px-6 py-5 md:grid-cols-3'>
               <div>
                 <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
@@ -755,6 +804,22 @@ export function MarketingV2Dashboard() {
               </div>
             </CardContent>
           </Card>
+        ) : null}
+
+        {totalCampaigns ? (
+          <div className='mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+            <CampaignSearch value={searchQuery} onChange={setSearchQuery} />
+            <div className='flex flex-wrap items-center gap-3'>
+              <CampaignDateFilter value={dateFilter} onChange={setDateFilter} />
+              <CampaignSort value={sortOrder} onChange={setSortOrder} />
+            </div>
+          </div>
+        ) : null}
+
+        {totalCampaigns ? (
+          <div className='mb-3 text-sm text-muted-foreground'>
+            Showing {visibleCampaignCount} of {totalCampaigns} campaigns
+          </div>
         ) : null}
 
         {!totalCampaigns ? (
@@ -779,18 +844,21 @@ export function MarketingV2Dashboard() {
             <CardHeader>
               <CardTitle>No campaigns match that search</CardTitle>
               <CardDescription>
-                Try a different campaign name, or clear the search to see everything again.
+                Try a different campaign name or activity date, or clear the filters to see everything again.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button variant='outline' onClick={() => setSearchQuery('')}>
-                Clear search
+              <Button
+                variant='outline'
+                onClick={() => resetCampaignControls(setSearchQuery, setDateFilter, setSortOrder)}
+              >
+                Clear filters
               </Button>
             </CardContent>
           </Card>
         ) : (
           <div className='space-y-8'>
-            {visibleSections.map((section) => (
+            {visiblePrimarySections.map((section) => (
               <CampaignSection
                 key={section}
                 title={sectionConfig[section].title}
@@ -798,6 +866,36 @@ export function MarketingV2Dashboard() {
                 campaigns={cardsBySection[section]}
               />
             ))}
+
+            {hasSentSection ? (
+              <Card rounded='xl' className='overflow-hidden border-border/60 bg-card/95 shadow-sm shadow-black/5'>
+                <CardContent className='px-6 py-0'>
+                  <Accordion type='single' collapsible>
+                    <AccordionItem value='sent-campaigns' className='border-b-0'>
+                      <AccordionTrigger className='py-5 hover:no-underline'>
+                        <div className='flex flex-col items-start gap-1 text-left'>
+                          <div className='text-h5'>{sectionConfig.sent.title}</div>
+                          <div className='text-sm text-muted-foreground'>
+                            {sectionConfig.sent.description}
+                          </div>
+                        </div>
+                        <div className='pr-2 text-sm text-muted-foreground'>
+                          {cardsBySection.sent.length} {cardsBySection.sent.length === 1 ? 'campaign' : 'campaigns'}
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className='pb-6'>
+                        <CampaignSection
+                          title={sectionConfig.sent.title}
+                          description={sectionConfig.sent.description}
+                          campaigns={cardsBySection.sent}
+                          hideHeader
+                        />
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         )}
       </div>

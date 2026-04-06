@@ -14,7 +14,7 @@ export function CampaignSearch({ value, onChange }: CampaignSearchProps) {
       onChange={(event) => onChange(event.target.value)}
       onClear={() => onChange('')}
       placeholder='Search by campaign name'
-      className='max-w-md'
+      className='max-w-md [&_[data-slot=input]]:bg-card'
     />
   );
 }

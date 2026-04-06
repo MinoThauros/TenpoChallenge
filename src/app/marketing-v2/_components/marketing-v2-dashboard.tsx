@@ -716,26 +716,17 @@ export function MarketingV2Dashboard() {
     );
   }
 
-  const orderedSections: CampaignSectionKey[] = [
-    'needs-attention',
-    'sending',
-    'scheduled',
-    'sent',
+  const currentCampaigns = [
+    ...cardsBySection['needs-attention'],
+    ...cardsBySection.sending,
+    ...cardsBySection.scheduled,
   ];
-
-  const visibleSections = orderedSections.filter(
-    (section) => cardsBySection[section].length > 0,
-  );
-  const visiblePrimarySections = visibleSections.filter((section) => section !== 'sent');
   const hasSentSection = cardsBySection.sent.length > 0;
   const totalCampaigns = demoCampaigns.filter((campaign) => campaign.status !== 'draft').length
     + bootstrap.campaigns.data.filter(
       (campaign) => !isMarketingV2DemoCampaign(campaign.id) && campaign.status !== 'draft',
     ).length;
-  const visibleCampaignCount = visibleSections.reduce(
-    (count, section) => count + cardsBySection[section].length,
-    0,
-  );
+  const visibleCampaignCount = currentCampaigns.length + cardsBySection.sent.length;
 
   return (
     <div className='min-h-screen bg-background'>
@@ -802,13 +793,12 @@ export function MarketingV2Dashboard() {
           </Card>
         ) : (
           <div className='space-y-8'>
-            {visiblePrimarySections.map((section) => (
+            {currentCampaigns.length ? (
               <CampaignSection
-                key={section}
-                title={sectionConfig[section].title}
-                campaigns={cardsBySection[section]}
+                title='Current campaigns'
+                campaigns={currentCampaigns}
               />
-            ))}
+            ) : null}
 
             {hasSentSection ? (
               <Card rounded='xl' className='overflow-hidden border-border/60 bg-card/95 shadow-sm shadow-black/5'>

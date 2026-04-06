@@ -52,6 +52,11 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from '@/components/ui/pagination';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Sheet,
@@ -91,6 +96,73 @@ type AudiencePreviewResponse = {
     pageSize: number;
   };
 };
+
+function CreationStepPagination({
+  step,
+  canGoToMessage,
+  canGoToSchedule,
+  onStepChange,
+}: {
+  step: 1 | 2 | 3;
+  canGoToMessage: boolean;
+  canGoToSchedule: boolean;
+  onStepChange: (step: 1 | 2 | 3) => void;
+}) {
+  const steps = [
+    { id: 1 as const, label: 'Recipients' },
+    { id: 2 as const, label: 'Message' },
+    { id: 3 as const, label: 'Schedule' },
+  ];
+
+  return (
+    <Pagination className='mb-8 justify-start'>
+      <PaginationContent className='w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-2'>
+        <PaginationItem>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            onClick={() => onStepChange(step === 3 ? 2 : 1)}
+            disabled={step === 1}
+            className='text-primary hover:bg-primary/10 disabled:text-muted-foreground disabled:hover:bg-transparent'
+          >
+            <ArrowLeft className='size-4' />
+            Back
+          </Button>
+        </PaginationItem>
+
+        <PaginationItem className='flex-1'>
+          <div className='flex flex-wrap items-center justify-center gap-2'>
+            {steps.map((item) => {
+              const isActive = step === item.id;
+              const isLocked = (item.id === 2 && !canGoToMessage)
+                || (item.id === 3 && !canGoToSchedule);
+
+              return (
+                <Button
+                  key={item.id}
+                  type='button'
+                  size='sm'
+                  variant={isActive ? 'default' : 'outline'}
+                  onClick={() => onStepChange(item.id)}
+                  disabled={isLocked}
+                  className={isActive
+                    ? 'bg-primary text-primary-foreground hover:opacity-90'
+                    : 'border-primary/15 bg-background text-primary hover:bg-primary/10'}
+                >
+                  <span className='inline-flex size-5 items-center justify-center rounded-full bg-background/20 text-xs font-semibold'>
+                    {item.id}
+                  </span>
+                  {item.label}
+                </Button>
+              );
+            })}
+          </div>
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  );
+}
 
 function EventRuleRow({
   rule,
@@ -477,7 +549,7 @@ async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> 
 
 export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata }) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [rules, setRules] = useState<MarketingV2AudienceRule[]>([
     createEmptyMarketingV2Rule(),
   ]);
@@ -549,13 +621,27 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
     };
   }, [activeRules, excludedContactIds]);
 
-  const canContinue = activeRules.length > 0 && (preview?.summary.matchingContacts ?? 0) > 0;
+  const canGoToMessage = activeRules.length > 0 && (preview?.summary.matchingContacts ?? 0) > 0;
+  const canGoToSchedule = Boolean(
+    canGoToMessage
+    && subject.trim()
+    && toPlainTextFromHtml(bodyHtml).trim(),
+  );
   const canSubmit = Boolean(
-    subject.trim()
-    && toPlainTextFromHtml(bodyHtml).trim()
+    canGoToSchedule
     && scheduleDate
     && scheduleTime,
   );
+  const recapBodyPreview = useMemo(() => {
+    const plainText = toPlainTextFromHtml(bodyHtml).trim();
+    if (!plainText) {
+      return '';
+    }
+
+    return plainText.length > 180
+      ? `${plainText.slice(0, 180).trim()}...`
+      : plainText;
+  }, [bodyHtml]);
 
   function buildScheduledAt() {
     if (!scheduleDate || !scheduleTime) {
@@ -713,6 +799,13 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           </Button>
         </div>
 
+        <CreationStepPagination
+          step={step}
+          canGoToMessage={canGoToMessage}
+          canGoToSchedule={canGoToSchedule}
+          onStepChange={setStep}
+        />
+
         {step === 1 ? (
           <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
             <CardHeader>
@@ -793,7 +886,7 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
               </div>
             </CardContent>
           </Card>
-        ) : (
+        ) : step === 2 ? (
           <div className='space-y-6'>
             <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
               <CardHeader>
@@ -839,10 +932,12 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
                 </div>
               </CardContent>
             </Card>
-
+          </div>
+        ) : (
+          <div className='space-y-6'>
             <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
               <CardHeader>
-                <CardTitle>Scheduling</CardTitle>
+                <CardTitle>Schedule</CardTitle>
                 <CardDescription>
                   Pick when parents should receive this message.
                 </CardDescription>
@@ -859,6 +954,43 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
               </CardContent>
             </Card>
 
+            <Card rounded='xl' className='border-border/60 shadow-sm shadow-black/5'>
+              <CardHeader>
+                <CardTitle>Before you schedule</CardTitle>
+                <CardDescription>
+                  A quick recap before this goes out.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className='grid gap-4 md:grid-cols-3'>
+                <div className='rounded-2xl border border-border/60 bg-secondary/25 px-4 py-4'>
+                  <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                    Recipients
+                  </div>
+                  <div className='mt-2 text-2xl font-medium'>
+                    {previewLoading ? '...' : preview?.summary.matchingContacts ?? 0}
+                  </div>
+                  <div className='mt-1 text-sm text-muted-foreground'>
+                    parents selected
+                  </div>
+                </div>
+                <div className='rounded-2xl border border-border/60 bg-secondary/25 px-4 py-4 md:col-span-2'>
+                  <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                    Subject
+                  </div>
+                  <div className='mt-2 text-base font-medium text-foreground'>
+                    {subject || 'No subject yet'}
+                  </div>
+                </div>
+                <div className='rounded-2xl border border-border/60 bg-background px-4 py-4 md:col-span-3'>
+                  <div className='text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground'>
+                    Message preview
+                  </div>
+                  <div className='mt-2 whitespace-pre-wrap text-sm text-muted-foreground'>
+                    {recapBodyPreview || 'No message yet'}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -869,32 +1001,22 @@ export function MarketingV2Creator({ metadata }: { metadata: AudienceMetadata })
           </Alert>
         ) : null}
 
-        <div className='mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-6'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => setStep((current) => (current === 2 ? 1 : 1))}
-            disabled={step === 1}
-          >
-            <ArrowLeft className='size-4' />
-            Back
-          </Button>
-
+        <div className='mt-8 flex flex-wrap items-center justify-end gap-3 border-t border-border/50 pt-6'>
           {step === 1 ? (
-            <Button type='button' onClick={() => setStep(2)} disabled={!canContinue}>
+            <Button type='button' onClick={() => setStep(2)} disabled={!canGoToMessage}>
               Continue
               <ArrowRight className='size-4' />
             </Button>
+          ) : step === 2 ? (
+            <Button type='button' onClick={() => setStep(3)} disabled={!canGoToSchedule}>
+              Continue to schedule
+              <ArrowRight className='size-4' />
+            </Button>
           ) : (
-            <div className='flex flex-wrap gap-3'>
-              <Button type='button' variant='outline' onClick={() => setStep(1)}>
-                Back to recipients
-              </Button>
-              <Button type='button' onClick={handleSubmit} disabled={submitting || !canSubmit}>
-                <CalendarClock className='size-4' />
-                {submitting ? 'Scheduling…' : 'Schedule campaign'}
-              </Button>
-            </div>
+            <Button type='button' onClick={handleSubmit} disabled={submitting || !canSubmit}>
+              <CalendarClock className='size-4' />
+              {submitting ? 'Scheduling…' : 'Schedule campaign'}
+            </Button>
           )}
         </div>
       </div>

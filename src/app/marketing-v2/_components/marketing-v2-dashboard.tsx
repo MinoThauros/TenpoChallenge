@@ -12,6 +12,12 @@ import type {
   Page,
   SegmentPreset,
 } from '@/lib/marketing-services';
+import {
+  ensureMarketingV2DemoSeedData,
+  isMarketingV2DemoCampaign,
+  readMarketingV2DemoCampaigns,
+  readMarketingV2DemoDispatchStates,
+} from '@/lib/marketing-v2-demo';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +30,8 @@ import {
 } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CampaignSearch } from './campaign-search';
+import { CampaignSort, type CampaignSortOrder } from './campaign-sort';
 
 type MarketingV2BootstrapResponse = {
   contactPresets: SegmentPreset<ContactSegmentFilters>[];
@@ -43,6 +51,11 @@ type AudienceDefinition = {
   presetId?: string | null;
   segment_scope?: string | null;
   filters?: (ContactSegmentFilters & ContactEventSegmentFilters) | null;
+  v2_event_rules?: Array<{
+    event_id: string;
+    event_label?: string | null;
+    status: string;
+  }>;
 };
 
 type CampaignCardModel = {
@@ -51,8 +64,9 @@ type CampaignCardModel = {
   stateCopy: string;
   progressCopy: string;
   noteCopy: string | null;
-  progressValue: number;
+  progressValue: number | null;
   section: CampaignSectionKey;
+  showProgress: boolean;
   statusLabel: string;
   statusVariant: 'secondary' | 'warning' | 'success' | 'error';
 };
@@ -93,6 +107,7 @@ function readAudienceDefinition(campaign: MarketingCampaign): AudienceDefinition
     presetId: raw?.presetId ?? null,
     segment_scope: raw?.segment_scope ?? null,
     filters: raw?.filters ?? {},
+    v2_event_rules: raw?.v2_event_rules ?? [],
   };
 }
 
@@ -116,6 +131,7 @@ function buildAudienceCopy(
 ) {
   const definition = readAudienceDefinition(campaign);
   const filters = definition.filters ?? {};
+  const v2EventRules = definition.v2_event_rules ?? [];
   const eventNames = (filters.eventIds ?? [])
     .map((id) => metadata.events.find((event) => event.id === id)?.label)
     .filter((label): label is string => Boolean(label));
@@ -129,6 +145,14 @@ function buildAudienceCopy(
     filters.hasSuccessfulTransaction ? 'paid' : null,
     filters.hasRegistration ? 'registered' : null,
   ].filter((status): status is string => Boolean(status));
+
+  if (v2EventRules.length) {
+    const statuses = Array.from(new Set(v2EventRules.map((rule) => rule.status)));
+    const events = v2EventRules.map((rule) => rule.event_label).filter((label): label is string => Boolean(label));
+    const statusLabel = statuses.length === 1 ? `${statuses[0]} families` : 'families';
+    const eventLabel = events.length === 1 ? events[0] : `${v2EventRules.length} past events`;
+    return `To ${statusLabel} from ${eventLabel}`;
+  }
 
   if (eventNames.length) {
     const statusLabel = eventStatuses.length === 1 ? `${eventStatuses[0]} families` : 'families';
@@ -245,6 +269,13 @@ function buildCampaignCardModel(
     const affectedRecipients = dispatchState
       ? dispatchState.failed_recipients + dispatchState.retry_scheduled_recipients
       : 0;
+    const noteParts = dispatchState
+      ? [
+        dispatchState.failed_recipients ? `${dispatchState.failed_recipients} failed` : null,
+        dispatchState.retry_scheduled_recipients ? `${dispatchState.retry_scheduled_recipients} retrying` : null,
+        dispatchState.canceled_recipients ? `${dispatchState.canceled_recipients} canceled` : null,
+      ].filter(Boolean)
+      : [];
 
     return {
       campaign,
@@ -257,9 +288,12 @@ function buildCampaignCardModel(
         : 'Review this campaign',
       noteCopy: campaign.status === 'canceled'
         ? 'The campaign was canceled before it fully finished.'
-        : null,
-      progressValue: dispatchState?.sent_percent ?? 12,
+        : noteParts.length
+          ? noteParts.join(' · ')
+          : null,
+      progressValue: dispatchState?.sent_percent ?? null,
       section,
+      showProgress: Boolean(dispatchState?.sent_percent),
       statusLabel: 'Needs attention',
       statusVariant: 'error',
     };
@@ -278,6 +312,7 @@ function buildCampaignCardModel(
         : null,
       progressValue: dispatchState?.sent_percent ?? 48,
       section,
+      showProgress: true,
       statusLabel: 'Sending',
       statusVariant: 'warning',
     };
@@ -290,8 +325,9 @@ function buildCampaignCardModel(
       stateCopy: `Going out ${formatDateTime(campaign.scheduled_at)}`,
       progressCopy: 'Ready to send',
       noteCopy: null,
-      progressValue: 62,
+      progressValue: null,
       section,
+      showProgress: false,
       statusLabel: 'Scheduled',
       statusVariant: 'secondary',
     };
@@ -313,6 +349,7 @@ function buildCampaignCardModel(
       noteCopy: failureCount > 0 ? `${failureCount} emails did not go through` : null,
       progressValue: 100,
       section,
+      showProgress: true,
       statusLabel: 'Sent',
       statusVariant: 'success',
     };
@@ -326,8 +363,9 @@ function buildCampaignCardModel(
     noteCopy: campaign.scheduled_at
       ? `Planned for ${formatDateTime(campaign.scheduled_at)} once ready`
       : null,
-    progressValue: 18,
+    progressValue: null,
     section,
+    showProgress: false,
     statusLabel: 'Draft',
     statusVariant: 'secondary',
   };
@@ -398,40 +436,42 @@ function CampaignSection({
                 : card.section === 'needs-attention'
                   ? 'bg-error-muted/18'
                   : '';
-
-              return (
-                <Link
-                  key={card.campaign.id}
-                  href={`/marketing/campaigns/${card.campaign.id}`}
-                  className={`block transition-colors hover:bg-muted/35 ${rowToneClassName}`}
+              const isDemoCampaign = isMarketingV2DemoCampaign(card.campaign.id);
+              const rowClassName = `block transition-colors hover:bg-muted/35 ${rowToneClassName}`;
+              const rowContent = (
+                <div
+                  className={`grid gap-4 px-6 py-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(220px,1.2fr)] lg:gap-6 lg:items-center ${
+                    index > 0 ? 'border-t border-border/45' : ''
+                  }`}
                 >
-                  <div
-                    className={`grid gap-4 px-6 py-5 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(220px,1.2fr)] lg:gap-6 lg:items-center ${
-                      index > 0 ? 'border-t border-border/45' : ''
-                    }`}
-                  >
-                    <div className='min-w-0 space-y-2'>
-                      <div className='flex flex-wrap items-center gap-3'>
-                        <h3 className='truncate text-lg font-medium'>{card.campaign.name}</h3>
-                        <Badge variant={card.statusVariant}>{card.statusLabel}</Badge>
+                  <div className='min-w-0 space-y-2'>
+                    <div className='flex flex-wrap items-center gap-3'>
+                      <h3 className='truncate text-lg font-medium'>{card.campaign.name}</h3>
+                      <Badge variant={card.statusVariant}>{card.statusLabel}</Badge>
+                      {isDemoCampaign ? <Badge variant='outline'>Demo</Badge> : null}
+                    </div>
+                    <p className='text-sm text-muted-foreground'>{card.audienceCopy}</p>
+                  </div>
+
+                  <div className='space-y-1'>
+                    <div className='text-sm font-medium text-foreground/90'>{card.stateCopy}</div>
+                    {card.noteCopy ? (
+                      <div className='text-sm text-muted-foreground'>{card.noteCopy}</div>
+                    ) : (
+                      <div className='text-sm text-muted-foreground'>
+                        {isDemoCampaign ? 'Saved in this browser' : 'Open campaign'}
                       </div>
-                      <p className='text-sm text-muted-foreground'>{card.audienceCopy}</p>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className='space-y-1'>
-                      <div className='text-sm font-medium text-foreground/90'>{card.stateCopy}</div>
-                      {card.noteCopy ? (
-                        <div className='text-sm text-muted-foreground'>{card.noteCopy}</div>
-                      ) : (
-                        <div className='text-sm text-muted-foreground'>Open campaign</div>
-                      )}
-                    </div>
-
-                    <div className='space-y-2'>
-                      <div className='flex items-center justify-between gap-3 text-sm'>
-                        <span className='font-medium text-foreground/90'>{card.progressCopy}</span>
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between gap-3 text-sm'>
+                      <span className='font-medium text-foreground/90'>{card.progressCopy}</span>
+                      {card.showProgress && card.progressValue !== null ? (
                         <span className='text-muted-foreground'>{Math.round(card.progressValue)}%</span>
-                      </div>
+                      ) : null}
+                    </div>
+                    {card.showProgress && card.progressValue !== null ? (
                       <Progress
                         value={card.progressValue}
                         className={`h-2.5 ${
@@ -444,8 +484,18 @@ function CampaignSection({
                                 : ''
                         }`}
                       />
-                    </div>
+                    ) : null}
                   </div>
+                </div>
+              );
+
+              return (
+                <Link
+                  key={card.campaign.id}
+                  href={`/marketing-v2/campaigns/${card.campaign.id}`}
+                  className={rowClassName}
+                >
+                  {rowContent}
                 </Link>
               );
             })}
@@ -461,8 +511,12 @@ export function MarketingV2Dashboard() {
   const [dispatchStates, setDispatchStates] = useState<Page<MarketingCampaignDispatchState> | null>(
     null,
   );
+  const [demoCampaigns, setDemoCampaigns] = useState<MarketingCampaign[]>([]);
+  const [demoDispatchStates, setDemoDispatchStates] = useState<MarketingCampaignDispatchState[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<CampaignSortOrder>('latest');
 
   useEffect(() => {
     let cancelled = false;
@@ -512,6 +566,27 @@ export function MarketingV2Dashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    function syncDemoCampaigns() {
+      setDemoCampaigns(readMarketingV2DemoCampaigns());
+      setDemoDispatchStates(readMarketingV2DemoDispatchStates());
+    }
+
+    if (bootstrap) {
+      const seedData = ensureMarketingV2DemoSeedData(bootstrap.metadata);
+      setDemoCampaigns(seedData.campaigns);
+      setDemoDispatchStates(seedData.dispatchStates);
+    } else {
+      syncDemoCampaigns();
+    }
+
+    window.addEventListener('storage', syncDemoCampaigns);
+
+    return () => {
+      window.removeEventListener('storage', syncDemoCampaigns);
+    };
+  }, [bootstrap]);
+
   const cardsBySection = useMemo(() => {
     if (!bootstrap || !dispatchStates) {
       return null;
@@ -524,10 +599,36 @@ export function MarketingV2Dashboard() {
       ]),
     );
 
-    const cards = bootstrap.campaigns.data.map((campaign) =>
+    const mergedCampaigns = [
+      ...demoCampaigns,
+      ...bootstrap.campaigns.data.filter(
+        (campaign) => !demoCampaigns.some((demoCampaign) => demoCampaign.id === campaign.id),
+      ),
+    ];
+    const mergedDispatchStates = [
+      ...demoDispatchStates,
+      ...dispatchStates.data.filter(
+        (dispatchState) => !demoDispatchStates.some((demoDispatchState) => demoDispatchState.dispatch_id === dispatchState.dispatch_id),
+      ),
+    ];
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const visibleCampaigns = normalizedQuery
+      ? mergedCampaigns.filter((campaign) =>
+        campaign.name.toLowerCase().includes(normalizedQuery)
+      )
+      : mergedCampaigns;
+    const orderedCampaigns = [...visibleCampaigns].sort((left, right) => {
+      const leftCreatedAt = new Date(left.created_at).getTime();
+      const rightCreatedAt = new Date(right.created_at).getTime();
+
+      return sortOrder === 'latest'
+        ? rightCreatedAt - leftCreatedAt
+        : leftCreatedAt - rightCreatedAt;
+    });
+    const cards = orderedCampaigns.map((campaign) =>
       buildCampaignCardModel(
         campaign,
-        chooseDispatchState(campaign, dispatchStates.data),
+        chooseDispatchState(campaign, mergedDispatchStates),
         bootstrap.metadata,
         presetLabelById,
       )
@@ -546,7 +647,7 @@ export function MarketingV2Dashboard() {
     }
 
     return sections;
-  }, [bootstrap, dispatchStates]);
+  }, [bootstrap, demoCampaigns, demoDispatchStates, dispatchStates, searchQuery, sortOrder]);
 
   if (loading) {
     return (
@@ -597,7 +698,13 @@ export function MarketingV2Dashboard() {
   const visibleSections = orderedSections.filter(
     (section) => cardsBySection[section].length > 0,
   );
-  const totalCampaigns = bootstrap.campaigns.data.length;
+  const totalCampaigns = demoCampaigns.length + bootstrap.campaigns.data.filter(
+    (campaign) => !isMarketingV2DemoCampaign(campaign.id),
+  ).length;
+  const visibleCampaignCount = visibleSections.reduce(
+    (count, section) => count + cardsBySection[section].length,
+    0,
+  );
 
   return (
     <div className='min-h-screen bg-background'>
@@ -611,12 +718,19 @@ export function MarketingV2Dashboard() {
             </p>
           </div>
           <Button asChild size='lg'>
-            <Link href='/marketing?tab=campaigns'>
+            <Link href='/marketing-v2/create'>
               <MailPlus className='size-4' />
               New campaign
             </Link>
           </Button>
         </div>
+
+        {totalCampaigns ? (
+          <div className='mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+            <CampaignSearch value={searchQuery} onChange={setSearchQuery} />
+            <CampaignSort value={sortOrder} onChange={setSortOrder} />
+          </div>
+        ) : null}
 
         {totalCampaigns ? (
           <Card rounded='xl' className='mb-8 border-border/60 bg-gradient-to-r from-card via-card to-secondary/25 shadow-sm shadow-black/5'>
@@ -653,10 +767,24 @@ export function MarketingV2Dashboard() {
             </CardHeader>
             <CardContent>
               <Button asChild>
-                <Link href='/marketing?tab=campaigns'>
+                <Link href='/marketing-v2/create'>
                   <MailPlus className='size-4' />
                   Create a campaign
                 </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : !visibleCampaignCount ? (
+          <Card rounded='lg' className='border-dashed'>
+            <CardHeader>
+              <CardTitle>No campaigns match that search</CardTitle>
+              <CardDescription>
+                Try a different campaign name, or clear the search to see everything again.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant='outline' onClick={() => setSearchQuery('')}>
+                Clear search
               </Button>
             </CardContent>
           </Card>
